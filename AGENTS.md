@@ -156,6 +156,7 @@ App 把 Ubuntu rootfs 解到应用私有目录，用 proot / proroot 在里面�
 | [docs/security-model.md](docs/security-model.md) | 安全模型与已知弱点 |
 | [docs/plugins.md](docs/plugins.md) | 插件安装与打包约定 |
 | [docs/android-low.md](docs/android-low.md) | Low 版的兼容差异 |
+| [docs/repo-migration.md](docs/repo-migration.md) | 仓库迁移记录：为什么以全新历史起步、哪些保留了 |
 | [docs/maintenance.md](docs/maintenance.md) | **维护手册**：单一事实源、改一处要连带改哪些、本机验证、重生成运行时描述、发版与排障 |
 | [docs/kotlin-migration.md](docs/kotlin-migration.md) | Java → Kotlin 迁移约定、雷区、批次与验证 |
 | [docs/接手指南.md](docs/接手指南.md) | 设计背景与踩坑记录 |

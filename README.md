@@ -167,6 +167,7 @@ python tools/verify-stability.py             # 稳定性验收
 | [docs/plugins.md](docs/plugins.md) | 插件安装与打包要求 |
 | [docs/security-model.md](docs/security-model.md) | 安全模型（[英文](docs/security-model.en.md)） |
 | [docs/android-standard.md](docs/android-standard.md) / [docs/android-low.md](docs/android-low.md) | 两个版本的适配说明 |
+| [docs/repo-migration.md](docs/repo-migration.md) | 仓库迁移记录（全新历史的原因与保留项） |
 | [docs/maintenance.md](docs/maintenance.md) | 维护手册：单一事实源、验证命令、发版与排障 |
 | [docs/kotlin-migration.md](docs/kotlin-migration.md) | Java → Kotlin 迁移约定、雷区、批次与验证 |
 | [docs/接手指南.md](docs/接手指南.md) | 写给不做安卓开发的接手者 |
