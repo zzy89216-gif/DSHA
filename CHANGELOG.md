@@ -4,6 +4,22 @@ DeepSeek Harness Android（DSHA）的版本变化，新版本在前。每个版�
 
 本项目的来源声明与第三方组件的许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
+## 0.2.0-zzy.1（2026-10-03）
+
+迁到新仓库 <https://github.com/zzy89216-gif/DSHA>，**全新历史**起步（不带此前任何仓库的提交记录；
+原 `DSHA-zzy` 与过渡仓库 `DSHA-zzy-kotlin` 已删除）。代码内容与上一版相同，本版的实际改动是：
+
+- 对外地址全部改到本仓库：`util/ProjectLinks.REPOSITORY`（应用内更新的唯一来源）、
+  「关于」页的项目入口、README 徽章、文档里的 Issues / Releases 链接。
+- 删除「关于」页的「上游项目」入口；来源声明仍保留在 `THIRD_PARTY_NOTICES.md`（MIT 要求）。
+- 发行版附件改名 `DSHA-<版本>.apk`（原 `DSHA-zzy-kotlin-<版本>.apk`）。
+- `VERSION_CODE_BASE` 从 147 提到 1000：新仓库的运行序号从 1 重来，沿用旧基数会算出比
+  已发布版本更小的 versionCode，同一包名将无法覆盖安装。
+- 修正 `THIRD_PARTY_NOTICES.md` 里过时的插件条目（名字、路径、哈希都变了），补上 `dsha-mobile`；
+  新增 `tools/test-doc-consistency.py`（文档里的链接与文件引用必须真实存在）。
+
+> 装过旧版本的请手动安装本版一次：旧版的更新检查指向已删除的旧仓库。
+
 ## 0.1.7-rc2-zzy.10（2026-10-03）
 
 迁到新仓库 <https://github.com/zzy89216-gif/DSHA>（**全新历史**起步，不带此前的贡献者记录），成为一个独立的 App：
