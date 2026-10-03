@@ -14,6 +14,7 @@
 用法：
     python3 -B tools/test-doc-consistency.py
 """
+import os
 import re
 import subprocess
 import sys
@@ -51,6 +52,25 @@ def is_build_output(text):
     return text.startswith(BUILD_OUTPUT)
 
 
+def is_ignored(path):
+    """这个路径是不是被 .gitignore 覆盖（构建输入/产物，干净检出时本来就不存在）。
+
+    不能用"文件不存在就当它没问题"来放过 —— 那样删掉文件后文档里的失效引用也会被静默放过。
+    用 git check-ignore 精确区分：被忽略的是构建产物，没被忽略又不存在就是真的失效。
+    目录要保留结尾的斜杠，规则可能写成 `archives/` 这种形式。
+    """
+    text = str(path)
+    trailing = text.endswith('/')
+    # check-ignore 对绝对路径不认，统一换成仓库相对路径
+    try:
+        text = os.path.relpath(text.rstrip('/'), ROOT)
+    except ValueError:
+        pass
+    result = subprocess.run(['git', 'check-ignore', '-q', '--', text + ('/' if trailing else '')],
+                            cwd=ROOT, capture_output=True)
+    return result.returncode == 0
+
+
 def resolve(base_dir, raw):
     path = raw.split('#', 1)[0].split('?', 1)[0]
     if not path or looks_like_placeholder(path):
@@ -77,7 +97,7 @@ def main():
             if raw.startswith(('http://', 'https://', 'mailto:', '#')):
                 continue
             target = resolve(base, raw)
-            if target is not None and not target.exists():
+            if target is not None and not target.exists() and not is_ignored(target):
                 errors.append(f'{name}: 链接指向不存在的路径 → {raw}')
 
         # 2. 反引号里的仓库相对路径
@@ -87,7 +107,7 @@ def main():
                     or is_build_output(candidate)):
                 continue
             target = (ROOT / candidate.split('#')[0]).resolve()
-            if not target.exists():
+            if not target.exists() and not is_ignored(candidate.split('#')[0]):
                 errors.append(f'{name}: 引用了不存在的路径 → {candidate}')
             # 顶层固定文件
         for raw in CODE_PATH.findall(text):
