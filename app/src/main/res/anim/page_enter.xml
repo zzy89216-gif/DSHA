@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 标签/子页切换：淡入 + 轻微上浮 + 微缩放（淡入淡出式切换，不左右滑，减少眩晕） -->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:duration="280" android:interpolator="@interpolator/ease_emphasized" android:shareInterpolator="true">
+    <alpha android:fromAlpha="0" android:toAlpha="1" android:startOffset="40" />
+    <translate android:fromYDelta="2.5%" android:toYDelta="0" />
+    <scale android:fromXScale="0.985" android:toXScale="1" android:fromYScale="0.985" android:toYScale="1"
+        android:pivotX="50%" android:pivotY="0%" />
+</set>

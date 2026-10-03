@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 玻璃卡片：半透明填充 + 发丝亮边，透出窗口背景 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/glass_card"/>
+    <stroke android:width="@dimen/hairline" android:color="@color/glass_edge"/>
+    <corners android:radius="@dimen/radius_card"/>
+</shape>

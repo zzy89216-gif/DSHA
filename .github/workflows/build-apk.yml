@@ -1,0 +1,235 @@
+name: Build APK
+
+# 云端编译 Standard 版 APK。
+# - 推送 main：构建并刷新预发布 ui-latest。
+# - 手动运行并勾选 publish：构建并发布正式版本（附 APK、.sha256 与应用内更新清单 updates.json）。
+# 离线 rootfs / dsh 运行时等大体积资产不在 git 中（见 .gitignore）。
+# 资产取自 0.1.7-rc2 正式 APK：优先读本仓库的 runtime-assets 发行版；没有时从上游下载一次并镜像过来，
+# 之后构建不再依赖上游仓库。哈希固定在下方，任何来源都必须一致。
+on:
+  push:
+    branches: [ main ]
+    paths-ignore: [ '**.md', 'docs/**', '.github/RELEASE_NOTES.md' ]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 发布为正式版本
+        type: boolean
+        default: false
+      tag:
+        description: 版本标签（留空则在上一个 vX.Y.Z-…-zzy.N 基础上 N+1）
+        required: false
+        default: ''
+
+concurrency:
+  # 正式发版不与日常构建互相取消。
+  group: build-apk-${{ github.ref }}-${{ inputs.publish && 'release' || 'ci' }}
+  cancel-in-progress: ${{ !inputs.publish }}
+
+env:
+  ASSET_APK: dsha-0.1.7-rc2.apk
+  ASSET_APK_SHA256: f8115ddffa119479f6378653b78e9adb1b23b5abf819a3f0f2602463f64d9b75
+  ASSET_RELEASE: runtime-assets
+  UPSTREAM_APK_URL: https://github.com/DSH-APP/DSHA/releases/download/v0.1.7-rc2/dsha-0.1.7-rc2.apk
+  # 独立包名，与原版 com.dsh.client 并存安装；置空则使用原包名（需同签名才能覆盖）。
+  DSHA_CI_APP_ID: zzy.dsha.Kotlin
+  # 上游 0.1.7-rc2 的版本码是 147；本项目每次构建在此之上递增，保证应用内更新可以识别新版本。
+  # 新仓库的运行序号从 1 重新开始；基数必须高于此前已发布的版本码（0.1.7-rc2-zzy.10 = 161），
+  # 否则同一包名无法覆盖安装（Android 不允许降级）。
+  VERSION_CODE_BASE: '1000'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" || true
+          df -h /
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # dsh 运行时按 tools/dsh-runtime 的锁文件在 CI 里重建，需要 Node 24 / npm 11。
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install SDK packages (runner 预装 SDK)
+        run: |
+          set -euo pipefail
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SM=$(ls -d "$SDK"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"; echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          yes | "$SM" --licenses > /dev/null || true
+          "$SM" --list 2>/dev/null | grep -E "platforms;android-3[6-9]" | head -5 || true
+          "$SM" "platforms;android-37.0" "build-tools;36.0.0" "platform-tools" "ndk;26.3.11579264" || \
+          "$SM" "platforms;android-37" "build-tools;36.0.0" "platform-tools" "ndk;26.3.11579264"
+          ls "$SDK/platforms"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Fetch base assets and rebuild dsh runtime
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release download "$ASSET_RELEASE" --repo "$GITHUB_REPOSITORY" --pattern "$ASSET_APK" --output upstream.apk 2>/dev/null; then
+            echo "资产来源：本仓库 $ASSET_RELEASE"
+          else
+            echo "本仓库还没有资产镜像，从上游下载一次"
+            curl -fL --retry 3 -o upstream.apk "$UPSTREAM_APK_URL"
+            mirror=1
+          fi
+          echo "$ASSET_APK_SHA256  upstream.apk" | sha256sum -c -
+          if [ "${mirror:-0}" = 1 ]; then
+            cp upstream.apk "$ASSET_APK"
+            gh release view "$ASSET_RELEASE" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+              gh release create "$ASSET_RELEASE" --repo "$GITHUB_REPOSITORY" --prerelease --latest=false \
+                --title "构建用离线运行时资产" \
+                --notes "CI 构建使用的离线运行时资产来源（0.1.7-rc2 正式 APK，SHA-256 $ASSET_APK_SHA256）。不是给用户安装的版本。"
+            gh release upload "$ASSET_RELEASE" "$ASSET_APK" --repo "$GITHUB_REPOSITORY" --clobber
+            rm -f "$ASSET_APK"
+          fi
+
+          # 1. 从旧 APK 取出不随 dsh 升级变化的字节：Ubuntu 基底、Ubuntu 工具、固定应急运行时归档。
+          python3 -B tools/ci-import-prebuilt-assets.py --apk upstream.apk --sha256 "$ASSET_APK_SHA256"
+          rm -f upstream.apk
+
+          # 2. 按 tools/dsh-runtime 的锁文件安装 Linux arm64 依赖并打构建期补丁，重建 dsh 运行时覆盖层。
+          python3 -B tools/prepare-dsh-runtime.py
+
+          # 3. 网页兼容层与受管运行时的哈希链，全部由源码重算。
+          npm ci --prefix tools/web-compat --ignore-scripts --no-audit --no-fund
+          node tools/prepare-web-compat.mjs
+          python3 -B tools/prepare-backup-assets.py --write
+          python3 -B tools/prepare-runtime-descriptor.py --write
+          python3 -B tools/test-runtime-descriptor-inputs.py
+
+          # 4. 安装期补丁必须在新版 dsh 上逐条命中，否则设备上会启动失败。
+          python3 -B tools/test-dsh-patch-anchors.py
+
+          du -sh app/src/main/assets
+
+      - name: Prepare signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.DSHA_CI_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.DSHA_CI_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          ks="$RUNNER_TEMP/ci.keystore"
+          if [ -n "${KEYSTORE_B64:-}" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$ks"
+            pass="$KEYSTORE_PASSWORD"
+          else
+            echo "::warning::未配置 DSHA_CI_KEYSTORE_B64，使用临时密钥；不同次构建之间无法覆盖升级。"
+            pass=$(openssl rand -hex 16)
+            keytool -genkeypair -keystore "$ks" -storepass "$pass" -keypass "$pass" -alias dsha-ci \
+              -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=DSHA CI" -noprompt
+          fi
+          echo "::add-mask::$pass"
+          {
+            echo "DSHA_KEYSTORE=$ks"
+            echo "DSHA_KEYSTORE_PASSWORD=$pass"
+            echo "DSHA_KEY_PASSWORD=$pass"
+            echo "DSHA_KEY_ALIAS=dsha-ci"
+          } >> "$GITHUB_ENV"
+
+      - name: Resolve version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISH: ${{ inputs.publish && 'true' || 'false' }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          tags=$(git ls-remote --tags --refs origin 'v*' | sed 's|.*refs/tags/||' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+.*-zzy\.[0-9]+$' | sort -V || true)
+          last=$(echo "$tags" | tail -1)
+          code=$((VERSION_CODE_BASE + GITHUB_RUN_NUMBER))
+          if [ "$PUBLISH" = true ]; then
+            tag="${INPUT_TAG:-}"
+            if [ -z "$tag" ]; then
+              test -n "$last" || { echo "::error::没有可递增的历史标签，请填写 tag"; exit 1; }
+              tag="${last%.*}.$(( ${last##*.} + 1 ))"
+            fi
+            echo "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+[0-9A-Za-z.-]*$' || { echo "::error::标签格式不对：$tag"; exit 1; }
+            if echo "$tags" | grep -qx "$tag"; then echo "::error::标签 $tag 已存在"; exit 1; fi
+            name="${tag#v}"
+            echo "RELEASE_TAG=$tag" >> "$GITHUB_ENV"
+          else
+            # 日常构建：上一个正式版 + 提交号，一眼能看出基于哪个版本。
+            name="${last#v}+${GITHUB_SHA::7}"
+            [ -n "$last" ] || name="0.0.0+${GITHUB_SHA::7}"
+          fi
+          echo "DSHA_VERSION_CODE=$code" >> "$GITHUB_ENV"
+          echo "DSHA_VERSION_NAME=$name" >> "$GITHUB_ENV"
+          echo "version: $name ($code)"
+
+      - name: Build Standard release APK
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace -I .github/ci/ci-build.init.gradle \
+            :app:assembleStandardRelease \
+            -x verifyPublishCertificate
+
+      - name: Collect APK
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          apk=$(ls app/build/outputs/apk/standard/release/*.apk | head -1)
+          aapt2=$(ls -d "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)
+          "$aapt2" dump badging "$apk" > badging.txt
+          pkg=$("$aapt2" dump packagename "$apk")
+          echo "package=$pkg"; head -1 badging.txt
+          if [ -n "$DSHA_CI_APP_ID" ]; then test "$pkg" = "$DSHA_CI_APP_ID"; fi
+          grep -q "versionCode='$DSHA_VERSION_CODE' versionName='$DSHA_VERSION_NAME'" badging.txt
+          # BuildConfig 必须与清单一致：应用内更新拿 BuildConfig.VERSION_CODE 比较新旧。
+          bc=$(find app/build/generated -path '*standard*release*' -name BuildConfig.java | head -1)
+          grep -q "VERSION_CODE = $DSHA_VERSION_CODE;" "$bc"
+          grep -q "VERSION_NAME = \"$DSHA_VERSION_NAME\";" "$bc"
+          if [ -n "${RELEASE_TAG:-}" ]; then
+            name="DSHA-${RELEASE_TAG#v}.apk"
+          else
+            name="dsha-ui-$(date -u +%Y%m%d)-${GITHUB_SHA::7}.apk"
+          fi
+          cp "$apk" "dist/$name"
+          (cd dist && sha256sum "$name" > "$name.sha256")
+          if [ -n "${RELEASE_TAG:-}" ]; then
+            python3 tools/make-update-feed.py --apk "dist/$name" --badging badging.txt --repo "$GITHUB_REPOSITORY" \
+              --tag "$RELEASE_TAG" --asset "$name" --notes-file .github/RELEASE_NOTES.md \
+              --expect-package "${DSHA_CI_APP_ID:-zzy.dsha.Kotlin}" --out dist/updates.json
+          fi
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsha-standard-apk
+          path: dist/
+          retention-days: 30
+          compression-level: 0
+
+      - name: Publish release
+        if: env.RELEASE_TAG != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "$RELEASE_TAG" dist/* --target "$GITHUB_SHA" --latest \
+            --title "DSHA $RELEASE_TAG" --notes-file .github/RELEASE_NOTES.md
+
+      - name: Publish rolling release
+        if: env.RELEASE_TAG == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release delete ui-latest --yes --cleanup-tag || true
+          gh release create ui-latest dist/* --title "预览版（自动构建）" --prerelease --latest=false \
+            --notes "main 分支最新提交 ${GITHUB_SHA::7} 的自动构建，未经发版验收。包名 ${DSHA_CI_APP_ID}，签名为本仓库 CI 密钥。正式版本见 Releases 中带版本号的发行版。"
+
+permissions:
+  contents: write

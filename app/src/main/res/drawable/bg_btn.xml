@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 次级按钮：浅灰胶囊，无描边 -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="@color/ripple">
+    <item android:id="@android:id/mask">
+        <shape android:shape="rectangle"><solid android:color="#FFFFFFFF" /><corners android:radius="@dimen/radius_button" /></shape>
+    </item>
+    <item>
+        <selector>
+            <item android:state_enabled="false">
+                <shape android:shape="rectangle"><solid android:color="@color/disabled" /><corners android:radius="@dimen/radius_button" /></shape>
+            </item>
+            <item>
+                <shape android:shape="rectangle"><solid android:color="@color/raised" /><corners android:radius="@dimen/radius_button" /></shape>
+            </item>
+        </selector>
+    </item>
+</ripple>

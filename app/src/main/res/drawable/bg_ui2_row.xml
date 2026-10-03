@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 分组行：透明底 + 从图标之后开始的发丝分隔线（iOS inset separator） -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="@color/ripple">
+    <item>
+        <layer-list>
+            <item><shape><solid android:color="@android:color/transparent" /></shape></item>
+            <item android:gravity="bottom" android:height="@dimen/hairline" android:start="@dimen/row_inset">
+                <shape><solid android:color="@color/separator" /></shape>
+            </item>
+        </layer-list>
+    </item>
+</ripple>

@@ -1,0 +1,4 @@
+# dsha-mobile：只有网页端的插件。宿主端是空 apply，只为在 Loader 里登记一行。
+- insert:
+    - id: dsha-mobile
+      name: 'dsha-mobile'

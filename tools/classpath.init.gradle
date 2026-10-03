@@ -1,0 +1,52 @@
+// 导出 :app 的编译类路径，供 tools/run-unit-tests.py 的「不经 Gradle 编译」链路使用。
+//
+// 为什么需要它：aarch64/Linux 上 Google 只发 x86_64 的 build-tools，aapt2 跑不起来，
+// `processStandardDebugResources` 一挂，整条 Gradle 编译链就断了（详见
+// tools/run-unit-tests.py 开头）。但**配置阶段**是好的：AGP 能正常解析依赖，
+// 只是执行阶段跑不动 aapt2。所以这里只借用 Gradle 的依赖解析能力，把类路径落成
+// 一个纯文本清单，剩下的编译交给 kotlinc/javac。
+//
+// 用法：
+//   bash build.sh -I tools/classpath.init.gradle :app:dshaDumpCompileClasspath
+// 产物：app/build/dsha-classpath/classpath.txt（`# 配置名` 分段，每行一个 jar）
+//
+// 注意 artifactType 必须显式要 `android-classes-jar`：直接取 configuration 的 files
+// 拿到的是 AAR，不是能被 javac/kotlinc 吃的 classes.jar。
+gradle.projectsEvaluated {
+    def app = gradle.rootProject.findProject(':app')
+    if (app == null) {
+        return
+    }
+    app.tasks.register('dshaDumpCompileClasspath') {
+        group = 'dsha'
+        description = '把 :app 的编译类路径导出到 app/build/dsha-classpath/classpath.txt'
+        doLast {
+            def outDir = new File(app.layout.buildDirectory.get().asFile, 'dsha-classpath')
+            outDir.mkdirs()
+            // standard + debug 是本机验证链覆盖的目标变体；unit test 配置额外带 JUnit。
+            def names = ['standardDebugCompileClasspath', 'standardDebugUnitTestCompileClasspath']
+            def lines = []
+            names.each { cfgName ->
+                def cfg = app.configurations.findByName(cfgName)
+                if (cfg == null) {
+                    logger.warn("dshaDumpCompileClasspath: 找不到配置 ${cfgName}")
+                    return
+                }
+                def view = cfg.incoming.artifactView { v ->
+                    v.attributes { a ->
+                        a.attribute(Attribute.of('artifactType', String), 'android-classes-jar')
+                    }
+                    // 单个依赖解析失败不应该让整条本机验证链瘫掉。
+                    v.lenient(true)
+                }
+                def files = view.files.files.sort { it.absolutePath }
+                lines << "# ${cfgName}"
+                files.each { f -> lines << f.absolutePath }
+                println "DSHA_CONFIG=${cfgName} entries=${files.size()}"
+            }
+            def out = new File(outDir, 'classpath.txt')
+            out.text = lines.join('\n') + '\n'
+            println "DSHA_CLASSPATH_FILE=${out.absolutePath}"
+        }
+    }
+}

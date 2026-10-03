@@ -1,0 +1,10 @@
+plugins {
+    id 'com.android.application' version '9.1.1' apply false
+    // 这里**故意不声明** org.jetbrains.kotlin.android：AGP 9 起内置 Kotlin，
+    // 再显式应用那个插件会直接构建失败
+    //   "The 'org.jetbrains.kotlin.android' plugin is no longer required for Kotlin
+    //    support since AGP 9.0."
+    // 内置 Kotlin 的编译器版本跟着 AGP 走（9.1.1 捆绑 2.2.10），所以本机验证链
+    // 用的 kotlinc 也必须同版本，否则会出现「本机编得过、CI 编不过」。见
+    // docs/kotlin-migration.md。
+}

@@ -1,0 +1,56 @@
+{
+  "name": "dsha-mobile",
+  "version": "0.2.0",
+  "description": "DSHA 手机专属网页界面：底部标签栏、抽屉侧栏、手机排版、可选动态玻璃",
+  "license": "MIT",
+  "author": "zzy89216-gif",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zzy89216-gif/dsha-mobile.git"
+  },
+  "homepage": "https://github.com/zzy89216-gif/dsha-mobile#readme",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "dsha",
+    "mobile"
+  ],
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "test",
+    "cordis.patch.yml",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-ui-primitives",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-theme",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-settings-general",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-workspace"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.0.4"
+  }
+}

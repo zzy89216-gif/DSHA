@@ -1,0 +1,294 @@
+plugins {
+    id 'com.android.application'
+}
+
+// 两版共用功能和离线环境；只有 low 携带兼容旧 Android 的 Gecko 内核。
+
+android {
+    namespace 'com.deepseekharness.app'
+    compileSdk {
+        version = release(37)
+    }
+    ndkVersion '26.3.11579264'
+
+    defaultConfig {
+        // 源码身份。**发布包名不是这个**：CI 按 DSHA_CI_APP_ID 注入 `zzy.dsha.Kotlin`
+        // （见 .github/ci/ci-build.init.gradle 与 BUILD.md 第 9 节）。
+        // 这里保持 com.dsh.client 是有原因的：审计脚手架绑着它 ——
+        // tools/device-backup-audit.init.gradle 会按这个字符串做源码改写
+        // （`com.dsh.client/...MainActivity` → 审计包名），并用
+        // `auditPackage.substring('com.dsh.client'.length())` 算 applicationIdSuffix；
+        // debug/deviceAudit/androidTest 里 37 处 `am start -n com.dsh.client/...` 正是它的改写锚点。
+        // 改这里必须同时改那套脚手架，否则审计构建会静默失效。
+        applicationId "com.dsh.client"
+        minSdk 30
+        targetSdk 37
+        versionCode 147
+        versionName "0.1.7-rc2"
+        testInstrumentationRunner project.findProperty('dsha.testRunner') ?: "com.deepseekharness.app.Rc13Instrumentation"
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    flavorDimensions 'androidSupport'
+    productFlavors {
+        standard {
+            dimension 'androidSupport'
+            minSdk 30
+            buildConfigField 'boolean', 'LOW_ANDROID', 'false'
+        }
+        low {
+            dimension 'androidSupport'
+            minSdk 23
+            versionNameSuffix 'low'
+            buildConfigField 'boolean', 'LOW_ANDROID', 'true'
+        }
+    }
+
+    signingConfigs {
+        // 本 App（zzy.dsha.Kotlin）的发布签名 = 本仓库 CI 密钥（PKCS12，alias dsha-ci，
+        // 4096 位 RSA，证书 SHA-256 79:77:DF:F4:…:42:8F，有效期到 2054-02-18）。
+        // 它与原 DSHA-zzy（zzy.dsha.com）和上游（com.dsh.client）的密钥都不同，
+        // 三者互不覆盖，可以同时安装。
+        // 这是本 App 永久的发布身份：一旦发过版就不能换 —— Android 只允许同签名覆盖安装，
+        // 换钥等于逼已安装用户卸载重装、丢数据。
+        // 正式任务必须明确提供这把证书；单测/debug 不依赖发布密钥。
+        publish {
+            def ksPath = System.getenv("DSHA_KEYSTORE") ?: project.findProperty("dsha.keystore")
+            if (ksPath != null && !ksPath.toString().isEmpty() && file(ksPath).exists()) {
+                storeFile file(ksPath)
+                storePassword System.getenv("DSHA_KEYSTORE_PASSWORD")
+                        ?: project.findProperty("dsha.keystore.password") ?: "android"
+                keyAlias System.getenv("DSHA_KEY_ALIAS")
+                        ?: project.findProperty("dsha.key.alias") ?: "androiddebugkey"
+                keyPassword System.getenv("DSHA_KEY_PASSWORD")
+                        ?: project.findProperty("dsha.key.password") ?: "android"
+                println "签名：发布 keystore ${ksPath}（alias=${keyAlias}）"
+            } else {
+                println "签名：未配置历史发布证书；正式 APK 打包将被阻止"
+            }
+            enableV1Signing true
+            enableV2Signing true
+            enableV3Signing true
+        }
+    }
+
+    buildTypes {
+        debug {
+            debuggable true
+        }
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.publish
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+            // 应急启动器按签名 APK 中的完整字节校验，禁止打包阶段再改写这两份 ELF。
+            keepDebugSymbols += ['**/libproot.so', '**/libprootloader.so']
+            // 使用 app 自带的同版本 16 KB JNI，覆盖 terminal-emulator AAR 中的旧库。
+            pickFirsts += ['**/libtermux.so']
+            excludes += ['**/x86/**', '**/x86_64/**', '**/armeabi/**', '**/armeabi-v7a/**']
+        }
+    }
+
+    androidResources {
+        // 'bin' 是离线 rootfs：aapt 会把 .tar.gz 静默解成 .tar，所以打包前改名 .bin，
+        // 保持 STORED（不 deflate），避免对已经压缩的离线运行时再压缩一次。
+        noCompress += ['gz', 'xz', 'bin', 'ja', 'tar', 'whl']
+    }
+
+    compileOptions {
+        coreLibraryDesugaringEnabled true
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+
+    buildFeatures {
+        resValues = true
+        aidl = true
+        buildConfig = true
+    }
+
+    sourceSets {
+        main.assets.setSrcDirs([layout.buildDirectory.dir("generated/standardAssets").get().asFile,
+                layout.buildDirectory.dir("generated/recoveryAssets").get().asFile])
+        main.java.srcDir(layout.buildDirectory.dir("generated/uiLanguage").get().asFile)
+    }
+}
+
+def verifyPublishCertificate = tasks.register("verifyPublishCertificate") {
+    doLast {
+        def signing = android.signingConfigs.publish
+        if (signing.storeFile == null || !signing.storeFile.isFile())
+            throw new GradleException("正式 APK 缺少本 App 的发布密钥，停止打包")
+        def store = java.security.KeyStore.getInstance(java.security.KeyStore.getDefaultType())
+        signing.storeFile.withInputStream { store.load(it, signing.storePassword.toCharArray()) }
+        def certificate = store.getCertificate(signing.keyAlias)
+        def expected = "7977dff4d452c3908daaea91f0a20b1aba71181b734ba43ab54898ff1e31428f"
+        if (certificate == null || java.security.MessageDigest.getInstance("SHA-256")
+                .digest(certificate.encoded).encodeHex().toString() != expected)
+            throw new GradleException("发布证书不是本 App 的发布证书（见 HANDOVER 第 3 节），停止打包")
+    }
+}
+tasks.configureEach {
+    if (name.matches("(package|validateSigning|assemble)(Standard|Low)Release")) dependsOn(verifyPublishCertificate)
+}
+
+def prepareStandardAssets = tasks.register("prepareStandardAssets", Exec) {
+    inputs.dir("src/main/assets")
+    inputs.file(rootProject.file("tools/prepare-standard-assets.py"))
+    inputs.file(rootProject.file("tools/generated_asset_directory.py"))
+    inputs.file(rootProject.file("tools/prepare-web-compat.mjs"))
+    inputs.files(rootProject.files("tools/web-compat/entry.cjs", "tools/web-compat/package.json", "tools/web-compat/package-lock.json"))
+    inputs.file(rootProject.file("tools/build-dsh-runtime.py"))
+    inputs.dir(rootProject.file("tools/dsh-runtime"))
+    inputs.file(rootProject.file("tools/prepare-ubuntu-tools.py"))
+    inputs.dir(rootProject.file("tools/ubuntu-tools"))
+    outputs.dir(layout.buildDirectory.dir("generated/standardAssets"))
+    outputs.file(layout.buildDirectory.file("generated/standard-assets-report.json"))
+    commandLine(System.getenv("DSHA_PYTHON") ?: "python3", "-B",
+            rootProject.file("tools/prepare-standard-assets.py").absolutePath,
+            "--source", file("src/main/assets").absolutePath,
+            "--output", layout.buildDirectory.dir("generated/standardAssets").get().asFile.absolutePath)
+}
+def prepareBackupAssets = tasks.register("prepareBackupAssets", Exec) {
+    inputs.file(rootProject.file("tools/prepare-backup-assets.py"))
+    inputs.file(file("src/main/assets/dsh-runtime.bin"))
+    outputs.file(file("src/main/assets/managed-package-proofs.json"))
+    commandLine(System.getenv("DSHA_PYTHON") ?: "python3", "-B", rootProject.file("tools/prepare-backup-assets.py").absolutePath, "--check")
+}
+prepareStandardAssets.configure { dependsOn(prepareBackupAssets) }
+def runtimeInputContractFile = file("src/main/assets/managed-runtime-inputs.json")
+def runtimeInputContract = new groovy.json.JsonSlurper().parse(runtimeInputContractFile)
+if (runtimeInputContract.schema != 1) throw new GradleException("未知受管运行时输入契约")
+def prepareRuntimeDescriptor = tasks.register("prepareRuntimeDescriptor", Exec) {
+    inputs.file(rootProject.file("tools/prepare-runtime-descriptor.py"))
+    inputs.file(rootProject.file("tools/runtime_input_contract.py"))
+    inputs.file(rootProject.file("tools/dsh-runtime/package.json"))
+    inputs.file(runtimeInputContractFile)
+    (runtimeInputContract.assetFiles + runtimeInputContract.installs.collect { it.asset }).unique().each {
+        inputs.file(file("src/main/assets/${it}"))
+    }
+    runtimeInputContract.assetTrees.each { inputs.files(fileTree("src/main/assets/${it}")) }
+    runtimeInputContract.launcherTrees.each { path ->
+        // 双后缀：launcher 源码树参与运行时身份哈希，漏掉 .kt 会让 Kotlin 文件
+        // 悄悄退出哈希，`--check` 只提示"不一致"，照着 `--write` 就把漏洞固化进随包清单。
+        inputs.files(fileTree(rootProject.file(path)) { include path.contains('/java/') ? '**/*.{java,kt}' : '**/*.so' })
+    }
+    runtimeInputContract.launcherSources.each { inputs.file(file("src/main/java/com/deepseekharness/app/${it}")) }
+    outputs.file(file("src/main/assets/runtime-descriptor.json"))
+    commandLine(System.getenv("DSHA_PYTHON") ?: "python3", "-B", rootProject.file("tools/prepare-runtime-descriptor.py").absolutePath, "--check")
+}
+def verifyRuntimeDescriptorInputs = tasks.register("verifyRuntimeDescriptorInputs", Exec) {
+    inputs.file(rootProject.file("tools/test-runtime-descriptor-inputs.py"))
+    inputs.file(rootProject.file("tools/prepare-runtime-descriptor.py"))
+    inputs.file(rootProject.file("tools/runtime_input_contract.py"))
+    inputs.file(runtimeInputContractFile)
+    inputs.file(file("build.gradle"))
+    commandLine(System.getenv("DSHA_PYTHON") ?: "python3", "-B", rootProject.file("tools/test-runtime-descriptor-inputs.py").absolutePath)
+}
+prepareRuntimeDescriptor.configure { dependsOn(verifyRuntimeDescriptorInputs) }
+prepareStandardAssets.configure { dependsOn(prepareRuntimeDescriptor) }
+
+// 应急运行时拥有独立锁；正式 DSH 更新不会把它隐式替换。
+def prepareRecoveryAssets = tasks.register("prepareRecoveryAssets", Exec) {
+    dependsOn(prepareStandardAssets)
+    inputs.file(rootProject.file("tools/prepare-recovery-assets.py"))
+    inputs.file(rootProject.file("tools/recovery_runtime_overlay.py"))
+    inputs.file(rootProject.file("tools/generated_asset_directory.py"))
+    inputs.file(rootProject.file("tools/recovery-runtime/lock.json"))
+    // 正式归档变化必须重算物理位置；固定副本可以首次缺失后由同摘要种子建立。
+    inputs.files(layout.buildDirectory.file("generated/standardAssets/offline-rootfs.bin"),
+            layout.buildDirectory.file("generated/standardAssets/dsh-runtime.bin"))
+            .withPropertyName("recoverySharedArchives").optional()
+    inputs.files(fileTree(rootProject.file("tools/recovery-runtime/archives")))
+            .withPropertyName("recoveryPinnedArchives")
+    inputs.files(file("src/main/assets/recovery-agent.js"), file("src/main/assets/recovery-profile-package.json"), file("src/main/assets/recovery-profile.patch.yml"))
+    inputs.files(file("src/main/assets/web-integration/es-compat.js"), file("src/main/assets/web-integration/startup.js"), file("src/main/assets/recovery-pdf-compat-patch.json"),
+            file("src/main/assets/recovery-language-patch.json"), file("src/main/assets/web-integration/language.js"))
+    inputs.files(fileTree("src/main/jniLibs"), fileTree("src/low/jniLibs"))
+    outputs.dir(layout.buildDirectory.dir("generated/recoveryAssets"))
+    commandLine(System.getenv("DSHA_PYTHON") ?: "python3", "-B",
+            rootProject.file("tools/prepare-recovery-assets.py").absolutePath,
+            "--output", layout.buildDirectory.dir("generated/recoveryAssets").get().asFile.absolutePath,
+            "--shared-assets", layout.buildDirectory.dir("generated/standardAssets").get().asFile.absolutePath)
+}
+tasks.configureEach {
+    if (name.matches("merge(Standard|Low).*Assets")) dependsOn(prepareRecoveryAssets)
+}
+
+def verifyBackupDependencies = tasks.register("verifyBackupDependencies") {
+    inputs.file(rootProject.file("tools/backup-dependencies.lock.json"))
+    doLast {
+        def lock = new groovy.json.JsonSlurper().parse(rootProject.file("tools/backup-dependencies.lock.json"))
+        if (lock.version != 1 || lock.dependencies.size() != 2) throw new GradleException("备份依赖锁格式错误")
+        ["standardReleaseRuntimeClasspath", "lowReleaseRuntimeClasspath"].each { name ->
+            def resolved = configurations.getByName(name).resolvedConfiguration.resolvedArtifacts
+            lock.dependencies.each { expected ->
+                def selected = resolved.findAll { it.moduleVersion.id.group == expected.group && it.name == expected.name }
+                if (selected.size() != 1 || selected[0].moduleVersion.id.version != expected.version)
+                    throw new GradleException("备份依赖版本未锁定：${expected.group}:${expected.name}")
+                def hash = java.security.MessageDigest.getInstance("SHA-256")
+                selected[0].file.withInputStream { input ->
+                    byte[] buffer = new byte[65536]; int count
+                    while ((count = input.read(buffer)) != -1) hash.update(buffer, 0, count)
+                }
+                if (hash.digest().encodeHex().toString() != expected.sha256)
+                    throw new GradleException("备份依赖摘要不符：${expected.name}")
+                if (!file("src/main/assets/${expected.licenseAsset}").isFile())
+                    throw new GradleException("缺少备份依赖许可：${expected.name}")
+            }
+        }
+    }
+}
+tasks.withType(JavaCompile).configureEach { dependsOn(verifyBackupDependencies) }
+// 备份依赖锁校验挂在编译任务上；只挂 JavaCompile 的话，Kotlin 侧改动会绕过它。
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    dependsOn(verifyBackupDependencies)
+}
+tasks.named("preBuild").configure { dependsOn(prepareStandardAssets, prepareRecoveryAssets) }
+def prepareUiLanguages = tasks.register("prepareUiLanguages", Exec) {
+    inputs.file(rootProject.file("tools/prepare-ui-languages.py"))
+    inputs.file(rootProject.file("tools/i18n/messages.json"))
+    outputs.dir(layout.buildDirectory.dir("generated/uiLanguage"))
+    commandLine(System.getenv("DSHA_PYTHON") ?: "python3", "-B",
+            rootProject.file("tools/prepare-ui-languages.py").absolutePath,
+            "--output", layout.buildDirectory.dir("generated/uiLanguage").get().asFile.absolutePath)
+}
+tasks.named("preBuild").configure { dependsOn(prepareUiLanguages) }
+
+// Java 与 Kotlin 的字节码目标必须一致：不一致时 Gradle 直接报
+// "Inconsistent JVM-target compatibility"（Java 走 compileOptions，Kotlin 走这里）。
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    }
+}
+
+dependencies {
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+    lowImplementation 'org.mozilla.geckoview:geckoview-arm64-v8a:143.0.20251003115653'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    // 1.15 保留 API 23；1.16 起要求 API 24，不能用于兼容版。
+    implementation 'androidx.webkit:webkit:1.15.0'
+    implementation 'com.google.android.material:material:1.11.0'
+    standardImplementation 'dev.rikka.shizuku:api:13.1.5'
+    standardImplementation 'dev.rikka.shizuku:provider:13.1.5'
+    // 13.1.5 从 API 24 起可用；兼容版以 12.2.0 的相同 Binder 协议支持 Android 6。
+    lowImplementation 'dev.rikka.shizuku:api:12.2.0'
+    lowImplementation 'dev.rikka.shizuku:provider:12.2.0'
+    // 真 PTY 终端：Termux 拆出的 terminal-view/terminal-emulator（Apache 2.0），
+    // 自带 JNI PTY 层（openpty+fork/exec）。坐标是 JitPack 多模块真实 groupId
+    // （com.termux.termux-app），不是 Wiki 上会 401 的 com.termux:terminal-view。
+    implementation 'com.termux.termux-app:terminal-view:0.118.0'
+    // 宿主备份：流式 JSON 清单与跨 API 23 的 PBKDF2-SHA256 / AES-GCM 实现，版本锁定。
+    implementation 'com.google.code.gson:gson:2.13.1'
+    implementation 'org.bouncycastle:bcprov-jdk15to18:1.85.2'
+    testImplementation 'junit:junit:4.13.2'
+}

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="apple_launch_details">运行详情</string>
+    <string name="apple_launch_details_sub">端口、环境、启动日志与恢复选项</string>
+    <string name="apple_advanced">高级设置</string>
+    <string name="apple_advanced_sub">原生凭据、悬浮条与运行时兼容选项</string>
+    <string name="apple_maintenance_sub">环境修复、数据救援与重置配置</string>
+    <string name="apple_expanded">已展开</string>
+    <string name="apple_collapsed">已收起</string>
+    <string name="apple_background">背景</string>
+    <string name="apple_bg_default">默认</string>
+    <string name="apple_bg_glass">动态玻璃</string>
+    <string name="apple_bg_image">自定义图片</string>
+    <string name="apple_bg_image_change">更换图片</string>
+    <string name="apple_bg_failed">无法读取这张图片</string>
+    <string name="apple_more_actions">更多操作</string>
+    <string name="apple_open_workspace">进入工作台</string>
+</resources>

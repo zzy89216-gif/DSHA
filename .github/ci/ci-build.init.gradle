@@ -1,0 +1,32 @@
+// 仅供 GitHub Actions 云端编译使用，不影响本地与正式发布构建。
+//
+// DSHA_CI_APP_ID     非空时替换 applicationId（Java 包名 / namespace 不变），可与原版并存安装。
+//                    FileProvider 等 authority 都用 ${applicationId}，自动跟随；
+//                    代码中需要本包名的位置统一读 BuildConfig.APPLICATION_ID。
+// DSHA_VERSION_CODE  非空时替换 versionCode。应用内更新要求新包版本码严格更大，CI 用运行序号递增。
+// DSHA_VERSION_NAME  非空时替换 versionName（low flavor 仍追加 "low"）。正式发版等于标签去掉 v。
+//
+// 用 androidComponents.onVariants：在 build.gradle 的 DSL 赋值之后执行，不会被覆盖；
+// BuildConfig.VERSION_CODE / VERSION_NAME 也取自这里设置的主输出。
+def appId = System.getenv("DSHA_CI_APP_ID") ?: ""
+def versionCode = System.getenv("DSHA_VERSION_CODE") ?: ""
+def versionName = System.getenv("DSHA_VERSION_NAME") ?: ""
+gradle.beforeProject { project ->
+    project.pluginManager.withPlugin("com.android.application") {
+        def components = project.extensions.getByName("androidComponents")
+        components.onVariants(components.selector().all()) { variant ->
+            if (!appId.isEmpty()) {
+                variant.applicationId.set(appId)
+                println "CI applicationId: ${variant.name} -> ${appId}"
+            }
+            variant.outputs.each { output ->
+                if (!versionCode.isEmpty()) output.versionCode.set(versionCode.toInteger())
+                if (!versionName.isEmpty()) {
+                    def name = variant.flavorName == "low" ? versionName + "low" : versionName
+                    output.versionName.set(name)
+                }
+            }
+            if (!versionCode.isEmpty() || !versionName.isEmpty()) println "CI version: ${variant.name} -> ${versionName} (${versionCode})"
+        }
+    }
+}

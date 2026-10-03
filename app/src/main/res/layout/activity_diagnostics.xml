@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="?attr/dshaPageBackground">
+  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:paddingLeft="12dp" android:paddingRight="18dp" android:gravity="center_vertical">
+    <androidx.appcompat.widget.AppCompatImageButton android:id="@+id/diagnostic_back" android:layout_width="48dp" android:layout_height="48dp" android:padding="12dp" android:background="?attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_ui_back" android:contentDescription="@string/ui_m0201" app:tint="@color/text"/>
+    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:text="@string/ui2_diagnostics" android:textSize="18sp" android:textColor="@color/text" android:includeFontPadding="false" android:textStyle="bold" android:layout_weight="1" android:layout_marginStart="10dp"/>
+  </LinearLayout>
+  <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:fillViewport="true">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp">
+      <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui2_diagnostics" android:textSize="30sp" android:textColor="@color/text" android:includeFontPadding="false" android:textStyle="bold" android:letterSpacing="-0.02" android:fontFamily="sans-serif"/>
+      <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui2_diagnostics_intro" android:textSize="15sp" android:textColor="@color/text_secondary" android:includeFontPadding="false" android:layout_marginTop="8dp" android:layout_marginBottom="18dp" android:lineSpacingExtra="2dp"/>
+      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="?attr/dshaCardBackground" android:padding="16dp" android:layout_marginBottom="12dp">
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui134_check_ready" android:textSize="18sp" android:textColor="@color/text" android:includeFontPadding="false" android:id="@+id/diagnostic_headline" android:textStyle="bold"/>
+        <TextView android:id="@+id/diagnostic_status" style="@style/DshaText.Label" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text=""/>
+        <Button android:id="@+id/diagnostic_refresh" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui_m0209"/>
+      </LinearLayout>
+      <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui134_results" android:textSize="12sp" android:textColor="@color/text" android:includeFontPadding="false" android:layout_marginTop="10dp" android:layout_marginBottom="8dp"/>
+      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="?attr/dshaCardBackground" android:padding="0dp" android:layout_marginBottom="12dp" android:id="@+id/diagnostic_results"/>
+      <TextView android:id="@+id/diagnostic_report" style="@style/DshaText.Caption" android:layout_width="match_parent" android:layout_height="wrap_content" android:textIsSelectable="true" android:fontFamily="monospace" android:paddingEnd="8dp" android:visibility="gone"/>
+      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+        <Button android:id="@+id/diagnostic_copy" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/ui_m0103" style="@style/Widget.DSHA.Button"/>
+        <Button android:id="@+id/diagnostic_export" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:text="@string/ui_m0109" style="@style/Widget.DSHA.Button"/>
+      </LinearLayout>
+      <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui134_start_records" android:textSize="12sp" android:textColor="@color/text" android:includeFontPadding="false" android:layout_marginTop="10dp" android:layout_marginBottom="8dp"/>
+      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="?attr/dshaCardBackground" android:padding="0dp" android:layout_marginBottom="12dp">
+        <LinearLayout android:id="@+id/diagnostic_history" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:padding="12dp" android:minHeight="64dp" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
+          <ImageView android:layout_width="@dimen/tile_size" android:layout_height="@dimen/tile_size" android:src="@drawable/ic_recovery_document" android:padding="6dp" android:background="@drawable/bg_tile_blue" android:contentDescription="@null" app:tint="@color/tile_on"/>
+          <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:orientation="vertical" android:layout_weight="1" android:layout_marginStart="12dp">
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui134_recent_startups" android:textSize="16sp" android:textColor="@color/text" android:includeFontPadding="false" android:fontFamily="sans-serif-medium"/>
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui134_recent_startups_sub" android:textSize="13sp" android:textColor="@color/text_secondary" android:includeFontPadding="false" android:layout_marginTop="3dp"/>
+          </LinearLayout>
+          <ImageView android:layout_width="14dp" android:layout_height="14dp" android:src="@drawable/ic_ui2_chevron" android:contentDescription="@null"/>
+        </LinearLayout>
+        <LinearLayout android:id="@+id/diagnostic_recovery" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:padding="12dp" android:minHeight="64dp" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
+          <ImageView android:layout_width="@dimen/tile_size" android:layout_height="@dimen/tile_size" android:src="@drawable/ic_ui2_box" android:padding="6dp" android:background="@drawable/bg_tile_orange" android:contentDescription="@null" app:tint="@color/tile_on"/>
+          <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:orientation="vertical" android:layout_weight="1" android:layout_marginStart="12dp">
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui134_startup_recovery" android:textSize="16sp" android:textColor="@color/text" android:includeFontPadding="false" android:fontFamily="sans-serif-medium"/>
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui134_startup_recovery_sub" android:textSize="13sp" android:textColor="@color/text_secondary" android:includeFontPadding="false" android:layout_marginTop="3dp"/>
+          </LinearLayout>
+          <ImageView android:layout_width="14dp" android:layout_height="14dp" android:src="@drawable/ic_ui2_chevron" android:contentDescription="@null"/>
+        </LinearLayout>
+      </LinearLayout>
+      <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui2_error_logs" android:textSize="12sp" android:textColor="@color/text" android:includeFontPadding="false" android:layout_marginTop="10dp" android:layout_marginBottom="8dp"/>
+      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="?attr/dshaCardBackground" android:padding="16dp" android:layout_marginBottom="12dp">
+        <TextView android:id="@+id/diagnostic_logs_status" style="@style/DshaText.Caption" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="44dp" android:gravity="center_vertical" android:paddingTop="8dp" android:paddingBottom="8dp" android:textColor="@color/primary" android:clickable="true" android:focusable="true"/>
+        <Button android:id="@+id/diagnostic_logs_download" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui_m0047"/>
+        <Button android:id="@+id/diagnostic_logs_save_as" style="@style/Widget.DSHA.TextButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:text="@string/ui_m0080"/>
+      </LinearLayout>
+      <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui2_troubleshooting" android:textSize="12sp" android:textColor="@color/text" android:includeFontPadding="false" android:layout_marginTop="10dp" android:layout_marginBottom="8dp"/>
+      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="?attr/dshaCardBackground" android:padding="16dp" android:layout_marginBottom="12dp">
+        <Button android:id="@+id/diagnostic_repair" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:text="@string/ui_m0060"/>
+        <Button android:id="@+id/diagnostic_plugins" style="@style/Widget.DSHA.TextButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="@string/ui_m0013"/>
+      </LinearLayout>
+      <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui2_reproduction" android:textSize="12sp" android:textColor="@color/text" android:includeFontPadding="false" android:layout_marginTop="10dp" android:layout_marginBottom="8dp"/>
+      <EditText android:id="@+id/diagnostic_steps" style="@style/DshaText.Body" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="80dp" android:layout_marginTop="12dp" android:background="@drawable/bg_input" android:padding="12dp" android:gravity="top" android:inputType="textMultiLine" android:hint="@string/ui_m0182" android:maxLength="2000"/>
+    </LinearLayout>
+  </ScrollView>
+</LinearLayout>

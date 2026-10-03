@@ -1,0 +1,872 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""DSHA 插件注册 / 启停：rootfs 烘焙的内置插件（+ 官方核心）登记进 dsh web profile。
+
+背景：内置插件（dsh-device-shell-guide / dsh-task-notifier / dsh-status-overlay /
+dsh-web-mobile）的实体随离线 rootfs 烘焙在 /root/dsha-*，但 dsh 只有在该插件的
+名字出现在 web profile（$DSH_HOME/profiles/web/package.json）的 dsh.profile.bundles
+里、且 profile 的 node_modules 下能解析到实体（链接到 /root/dsha-*）时才会加载。
+官方核心（@deepseek-ai/dsh-base / @deepseek-ai/dsh-web-app）从 dsh 安装树解析，
+无需 node_modules 链接，但同样以 bundles 里的名字决定是否加载。
+
+本脚本负责「注册 / 启用 / 禁用」三类动作，幂等 —— 覆盖安装（rootfs 保留、旧 profile
+已存在）与全新安装（rootfs 重新解压、profile 尚未生成）两条路径都适用。
+
+用法：
+  python3 register-builtin-plugins.py                # 注册：把未禁用的内置插件并进 profile
+  python3 register-builtin-plugins.py --enable 名字   # 启用：加回 bundles + 建链
+  python3 register-builtin-plugins.py --disable 名字  # 禁用：移出 bundles + 摘链 + 写禁用标记
+
+注册契约（与 selftest.py / fix-stale-bundles.sh 保持一致）：
+  1. profiles/web/package.json 的 dsh.profile.bundles 含插件名；
+  2. dependencies 有 link: 声明（pnpm 重装/加插件时不会把内置链接摘掉）；
+  3. profiles/web/node_modules/<name> 是指向 /root/dsha-* 的符号链接。
+禁用标记：profiles/web/node_modules/<name>.disabled（空文件）—— 存在即表示用户主动
+禁用，注册流程会尊重它而永远跳过（与 selftest.py 的判定一致），只有 --enable 会清掉。
+
+清单通过临时文件原子替换，不为每次开关累积备份；每次运行写 repair-builtin.log。
+
+只读 / 保守原则：只对「名字已知且实体存在」的插件动手；不删除已有 bundle、
+不改写用户第三方插件、不覆盖已存在的 node_modules 实体（那可能是用户 pnpm 装的）。
+
+本地测试（不走 proot，用假 root 目录模拟）：
+  DSHA_TEST_ROOT=/tmp/fakeroot DSH_HOME=/tmp/fakeroot/root/.dsh python3 register-builtin-plugins.py
+"""
+import json
+import os
+import shutil
+import sys
+import time
+import re
+import uuid
+from contextlib import contextmanager
+from pathlib import Path
+
+# ================= 位置与清单 =================
+
+ROOT = os.environ.get("DSHA_TEST_ROOT", "")       # 本地测试时把 "/" 换成假 root
+DSH_HOME = os.environ.get("DSH_HOME", "/root/.dsh")
+PROFILE = os.path.join(DSH_HOME, "profiles", "web")
+MANIFEST = os.path.join(PROFILE, "package.json")
+PATCH_FILE = os.path.join(PROFILE, "cordis.patch.yml")
+WORKSPACE = os.path.join(PROFILE, "pnpm-workspace.yaml")
+NODE_MODULES = os.path.join(PROFILE, "node_modules")
+REPAIR_LOG = os.path.join(DSH_HOME, "repair-builtin.log")
+
+# 兜底清单：dsha-builtin.txt 缺失（精简包/手改）时仍能认出这四个内置插件
+DEFAULT_BUILTINS = (
+    "dsh-device-shell-guide",
+    "dsh-task-notifier",
+    "dsh-status-overlay",
+    "dsh-web-mobile",
+    "dsh-computer-use-android",
+    "dsh-auto-review",
+    "dsh-tool-vscreen",
+    "dsha-mobile",
+    "dsh-app-integration",
+)
+
+# web profile 的官方核心（dsh 的 PROFILE_TEMPLATES.web），新建 profile 时打底
+OFFICIAL_BUNDLES = ("@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app")
+
+PROFILE_PATCH_TEMPLATE = (
+    "# Your patch layer for this dsh profile, applied after every bundle layer:\n"
+    "# a top-level YAML array of loader patch entries (id-targeted config\n"
+    "# overrides, disables, and insert lists; `!!js` expressions allowed).\n"
+    "[]\n"
+)
+
+PROFILE_WORKSPACE_TEMPLATE = (
+    "packages:\n"
+    "  - .\n"
+    "\n"
+    "nodeLinker: hoisted\n"
+    "autoInstallPeers: false\n"
+)
+
+
+def local(path):
+    """容器内绝对路径 → 本地文件系统路径（测试用 DSHA_TEST_ROOT 前缀）。"""
+    if not ROOT:
+        return path
+    root = os.path.normcase(os.path.abspath(ROOT))
+    candidate = os.path.normcase(os.path.abspath(path))
+    if candidate == root or candidate.startswith(root + os.sep):
+        return path
+    return os.path.join(ROOT, path.lstrip("/\\"))
+
+
+# 这两项是 guest 内的绝对路径。生产态 ROOT 为空时不能通过
+# os.path.join(ROOT, ...) 构造，否则会随启动工作目录（通常为 /root）漂移。
+BUILTIN_LIST = local("/root/dsha-builtin.txt")
+MANAGED_ASSET_MARKER = local("/usr/local/share/dsha/managed-assets-v2")
+
+
+def valid_name(name):
+    return isinstance(name, str) and len(name) <= 214 and re.fullmatch(
+        r"(?:@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*", name) is not None
+
+
+def ensure_relative_link(link, target):
+    """受管链接用相对路径；仅迁移指向同一目标的旧链接，保留用户实体与其他链接。"""
+    if os.path.lexists(link):
+        if not os.path.islink(link):
+            return False
+        current = os.readlink(link)
+        same = os.path.realpath(link) == os.path.realpath(target)
+        if not same and os.path.normpath(current) != os.path.normpath(target):
+            return False
+        if not os.path.isabs(current) and same:
+            return False
+    os.makedirs(os.path.dirname(link), exist_ok=True)
+    relative = os.path.relpath(target, os.path.dirname(link))
+    # 原子替换，避免中断恰好发生在删旧链接与建新链接之间。
+    temporary = link + '.dsha-link-' + uuid.uuid4().hex
+    created = False
+    try:
+        os.symlink(relative, temporary, target_is_directory=True)
+        created = True
+        os.replace(temporary, link)
+        return True
+    finally:
+        if created and os.path.islink(temporary):
+            os.unlink(temporary)
+
+
+def runtime_links_stamp():
+    """仅检查链接所在目录和受管入口；增删/替换链接会改变父目录，无需逐个 realpath。"""
+    package = local('/usr/local/lib/node_modules/@deepseek-ai/dsh')
+    bundled = os.path.join(package, 'node_modules')
+    shared = os.path.join(local(DSH_HOME), 'node_modules')
+    paths = [package, os.path.join(package, 'package.json'), bundled, shared]
+    for base in (bundled, shared):
+        if os.path.isdir(base):
+            paths.extend(os.path.join(base, name) for name in os.listdir(base) if name.startswith('@'))
+    for name in DEFAULT_BUILTINS:
+        managed = local('/root/dsha-' + name.removeprefix('dsh-'))
+        paths.extend([managed, os.path.join(managed, 'package.json'), os.path.join(managed, 'node_modules')])
+    stamp = []
+    for path in sorted(paths):
+        try:
+            stat = os.lstat(path)
+            stamp.append([path, stat.st_dev, stat.st_ino, stat.st_mtime_ns, stat.st_ctime_ns,
+                          stat.st_size, os.path.realpath(path)])
+        except FileNotFoundError:
+            stamp.append([path, None])
+    return stamp
+
+
+def managed_asset_identity():
+    """链接缓存必须绑定 APK 受管资产；旧缓存不能跨覆盖更新继续生效。"""
+    try:
+        text = Path(MANAGED_ASSET_MARKER).read_text(encoding='ascii')
+    except (OSError, UnicodeError):
+        return ''
+    lines = text.splitlines()
+    if len(lines) != 2 or lines[0] != 'DSHA_MANAGED_ASSETS_V2':
+        return ''
+    value = lines[1]
+    return value if len(value) == 64 and all(char in '0123456789abcdef' for char in value) else ''
+
+
+def ensure_runtime_modules(force=False):
+    cache = local(os.path.join(DSH_HOME, '.runtime-links-cache.json'))
+    stamp = runtime_links_stamp()
+    asset_identity = managed_asset_identity()
+    if not force:
+        try:
+            with open(cache, encoding='utf-8') as stream:
+                previous = json.load(stream)
+            if previous == {'version': 2, 'managedAssetId': asset_identity, 'stamp': stamp}:
+                print('RUNTIME_LINKS_CACHED: 共享依赖未变化，复用已检查链接', flush=True)
+                return 0
+        except (OSError, ValueError):
+            pass
+    print('RUNTIME_LINKS_CHECK: 检查共享依赖链接', flush=True)
+    count = repair_runtime_modules()
+    try:
+        os.makedirs(os.path.dirname(cache), exist_ok=True)
+        temporary = cache + '.tmp'
+        with open(temporary, 'w', encoding='utf-8') as stream:
+            json.dump({'version': 2, 'managedAssetId': managed_asset_identity(),
+                       'stamp': runtime_links_stamp()}, stream)
+        os.replace(temporary, cache)
+    except OSError:
+        pass
+    return count
+
+
+def repair_runtime_modules():
+    """导入插件与 /root 下受管内置插件均解析同一份运行时，供 ESM 查找 peer 模块。"""
+    package = local('/usr/local/lib/node_modules/@deepseek-ai/dsh')
+    bundled = os.path.join(package, 'node_modules')
+    if not os.path.isdir(bundled):
+        return 0
+    home = os.path.realpath(local(DSH_HOME))
+    shared = os.path.join(local(DSH_HOME), 'node_modules')
+    candidates = {}
+    for name in os.listdir(bundled):
+        source = os.path.join(bundled, name)
+        if name.startswith('@') and os.path.isdir(source):
+            for child in os.listdir(source):
+                candidates[name + '/' + child] = os.path.join(source, child)
+        else:
+            candidates[name] = source
+    candidates['@deepseek-ai/dsh'] = package
+    count = 0
+    for name in DEFAULT_BUILTINS:
+        managed = local('/root/dsha-' + name.removeprefix('dsh-'))
+        modules = os.path.join(managed, 'node_modules')
+        if os.path.isfile(os.path.join(managed, 'package.json')):
+            count += int(ensure_relative_link(modules, bundled))
+    for name, source in candidates.items():
+        if not valid_name(name) or not os.path.isfile(os.path.join(source, 'package.json')):
+            continue
+        target = os.path.join(shared, name)
+        parent = os.path.dirname(target)
+        if os.path.commonpath([home, os.path.realpath(parent)]) != home:
+            raise RuntimeError('运行时模块目录指向用户环境之外，已停止修复')
+        # 用户已有实体/依赖保持原样，同时迁移旧版由本工具创建的绝对链接。
+        count += int(ensure_relative_link(target, source))
+    return count
+
+
+@contextmanager
+def operation_lock(check_cancel=None):
+    """所有 DSHA 插件清单写入共用锁；进程退出由系统释放。"""
+    os.makedirs(local(DSH_HOME), exist_ok=True)
+    # 锁放在 .dsh 外，恢复整个 .dsh 时不会换掉正在使用的锁 inode。
+    data_root = os.path.dirname(local(DSH_HOME))
+    with open(os.path.join(data_root, ".dsha-data.lock"), "a") as lock:
+        if os.name != "nt":
+            import fcntl
+            while True:
+                if check_cancel:
+                    check_cancel()
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    time.sleep(0.1)
+        try:
+            if os.path.isfile(os.path.join(data_root, ".dsha-restore-journal.json")):
+                raise RuntimeError("恢复事务尚未完成，请先启动 DSHA 完成恢复后再操作插件")
+            yield
+        finally:
+            if os.name != "nt":
+                fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+def entity_dir(name):
+    """内置插件名 → 其实体目录（/root/dsha-*），找不到（官方核心/第三方）返回 None。"""
+    if not valid_name(name):
+        return None
+    system = name in builtin_names()
+    if system:
+        managed = '/root/dsha-' + name.removeprefix('dsh-')
+        if os.path.isfile(local(os.path.join(managed, 'package.json'))):
+            return managed
+        # 签名系统插件只能来自当前 APK 刷新的受管实体。旧 profile 里的同名
+        # 实体副本、plugin-src 草稿和全局包都不能抢在它前面。
+        return None
+    if not system:
+        active = os.path.join(NODE_MODULES, name)
+        if os.path.isfile(local(os.path.join(active, "package.json"))):
+            return active
+    imported = os.path.join(DSH_HOME, "plugin-src", name)
+    if os.path.isfile(local(os.path.join(imported, "package.json"))):
+        return imported
+    if name.startswith("@"):
+        found = discover_plugins().get(name)
+        return found["directory"] if found else None
+    cands = ["/root/" + name, "/root/dsha-" + name]
+    if name.startswith("dsh-"):
+        cands.insert(0, "/root/dsha-" + name[4:])
+    for c in cands:
+        if os.path.isfile(local(os.path.join(c, "package.json"))):
+            return c
+    found = discover_plugins().get(name)
+    return found["directory"] if found else None
+
+
+def discover_plugins(home_directory=None, include_global=True):
+    """只读枚举常用安装位置；仅识别带可读取 bundle patch 的插件，不把运行时依赖当插件。"""
+    roots = [(NODE_MODULES, "Web 配置"), (os.path.join(DSH_HOME, "plugin-src"), "本地导入"),
+             (os.path.join(DSH_HOME, "node_modules"), "共享插件"),
+             (os.path.join(DSH_HOME, "profiles", "node_modules"), "共享配置"),
+             (os.path.join(home_directory or '/root', 'node_modules'), "终端安装")]
+    if include_global:
+        roots.append(("/usr/local/lib/node_modules", "全局安装"))
+    profiles = local(os.path.join(DSH_HOME, "profiles"))
+    if os.path.isdir(profiles):
+        for profile in sorted(os.listdir(profiles)):
+            if profile in ("web", "node_modules") or not re.fullmatch(r"[A-Za-z0-9_.-]{1,80}", profile):
+                continue
+            roots.append((os.path.join(DSH_HOME, "profiles", profile, "node_modules"), "配置 " + profile))
+    runtime = os.path.realpath(local('/usr/local/lib/node_modules/@deepseek-ai/dsh'))
+    found = {}
+    for root, location in roots:
+        path = local(root)
+        if not os.path.isdir(path):
+            continue
+        candidates = []
+        for entry in sorted(os.listdir(path)):
+            if entry.startswith('@') and os.path.isdir(os.path.join(path, entry)):
+                candidates.extend(entry + '/' + child for child in sorted(os.listdir(os.path.join(path, entry))))
+            else:
+                candidates.append(entry)
+        for name in candidates:
+            if not valid_name(name) or name in OFFICIAL_BUNDLES or name in builtin_names():
+                continue
+            directory = os.path.realpath(os.path.join(path, name))
+            # 由 ensure_runtime_modules 自动生成的共享依赖链接不属于用户安装。
+            try:
+                shared_runtime = os.path.commonpath([runtime, directory]) == runtime
+            except ValueError:
+                shared_runtime = False
+            if shared_runtime:
+                continue
+            manifest = os.path.join(directory, 'package.json')
+            try:
+                if os.path.getsize(manifest) > 1024 * 1024:
+                    continue
+                with open(manifest, encoding='utf-8') as stream:
+                    package = json.load(stream)
+                patch = package.get('dsh', {}).get('bundle', {}).get('patch')
+                patches = [patch] if isinstance(patch, str) else patch
+                if (package.get('name') != name or not isinstance(patches, list) or not patches
+                        or any(not isinstance(item, str) or not item for item in patches)):
+                    continue
+                if any(os.path.isabs(item) or '\\' in item
+                        or os.path.commonpath([directory, os.path.realpath(os.path.join(directory, item))]) != directory
+                        or not os.path.isfile(os.path.realpath(os.path.join(directory, item))) for item in patches):
+                    continue
+            except (OSError, ValueError, TypeError, AttributeError):
+                continue
+            if name not in found:
+                found[name] = dict(directory=directory, location=location, locations=[location])
+            elif location not in found[name]['locations']:
+                found[name]['locations'].append(location)
+    return found
+    return None
+
+
+def marker_path(name):
+    """禁用标记：node_modules/<name>.disabled（空文件即禁用，与 selftest.py 一致）。"""
+    return os.path.join(local(NODE_MODULES), name + ".disabled")
+
+
+def is_disabled(name):
+    return os.path.isfile(marker_path(name))
+
+
+def builtin_names():
+    """当前签名内置清单；固定清单永远是下限，文件只能追加合法名称。"""
+    names = list(DEFAULT_BUILTINS)
+    try:
+        with open(BUILTIN_LIST, encoding="utf-8") as f:
+            for line in f:
+                name = line.strip()
+                if name and not name.startswith("#") and valid_name(name) and name not in names:
+                    names.append(name)
+    except OSError:
+        pass
+    return names
+
+
+# ================= profile 读写 =================
+
+def read_manifest():
+    if not os.path.isfile(local(MANIFEST)):
+        return None
+    try:
+        with open(local(MANIFEST), encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        raise RuntimeError("profile package.json 无法解析：%s" % e)
+
+
+def write_manifest(doc):
+    os.makedirs(local(PROFILE), exist_ok=True)
+    text = json.dumps(doc, indent=2) + "\n"
+    tmp = local(MANIFEST + ".dsha-tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(text)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, local(MANIFEST))
+
+
+def ensure_profile_files():
+    """新建 profile 时补齐 dsh initProfile 会写的三个文件（已是 dsh 模板就跳过）。"""
+    os.makedirs(local(PROFILE), exist_ok=True)
+    if not os.path.isfile(local(PATCH_FILE)):
+        with open(local(PATCH_FILE), "w", encoding="utf-8") as f:
+            f.write(PROFILE_PATCH_TEMPLATE)
+    if not os.path.isfile(local(WORKSPACE)):
+        with open(local(WORKSPACE), "w", encoding="utf-8") as f:
+            f.write(PROFILE_WORKSPACE_TEMPLATE)
+
+
+def new_manifest(registered):
+    """profile 尚不存在：按 dsh web 模板 + 内置插件新建。
+
+    registered 形如 { "dsh-device-shell-guide": "/root/dsha-device-shell-guide" }，
+    dependencies 形如 { "dsh-device-shell-guide": "link:/root/dsha-device-shell-guide" }。
+
+    patchReload 刻意用 "startup" 而非 dsh web 模板默认的 "live"：live 会要求 dsh 进程
+    加载 cordis-plugin-hmr（热重载），而它强制需要 node --expose-internals —— 本应用
+    的启动命令不带该标志，live 会让 dsh 直接崩（"failed to apply loader entry ...
+    --expose-internals is required"），Web 起不来。startup 只在重启时应用补丁，移动端
+    本来就走「重启 Web」流程，功能不受影响。
+    """
+    deps = {name: "link:" + d for name, d in registered.items()}
+    return {
+        "name": "dsh-profile-web",
+        "private": True,
+        "dependencies": deps,
+        "dsh": {
+            "profile": {
+                "bundles": list(OFFICIAL_BUNDLES) + list(registered.keys()),
+                "patchReload": "startup",
+            }
+        },
+    }
+
+
+def merge_manifest(doc, registered):
+    """profile 已存在：把内置插件并进 bundles 与 dependencies，不动其它。"""
+    doc = dict(doc)
+    doc["dsh"] = dict(doc.get("dsh") or {})
+    doc["dsh"]["profile"] = dict(doc["dsh"].get("profile") or {})
+    bundles = list(doc["dsh"]["profile"].get("bundles") or [])
+    deps = dict(doc.get("dependencies") or {})
+    added = []
+    for name, d in registered.items():
+        if name not in bundles:
+            bundles.append(name)
+            added.append(name)
+        deps[name] = "link:" + d
+    # 同 new_manifest：Android 上 live（HMR）会让 dsh 因缺 --expose-internals 崩溃，
+    # 覆盖安装老 profile 也可能是 live，必须拉回 startup 才能起得来
+    doc["dsh"]["profile"]["patchReload"] = "startup"
+    doc["dsh"]["profile"]["bundles"] = bundles
+    doc["dependencies"] = deps
+    return doc, added
+
+
+# ================= node_modules 链接 =================
+
+def quarantine_builtin_entity(name, path):
+    """迁走遮挡受管插件的旧实体并保留原字节；链接本身不需要隔离。"""
+    if name not in builtin_names() or not os.path.lexists(path) or os.path.islink(path):
+        return False
+    data_root = os.path.dirname(local(DSH_HOME))
+    quarantine = os.path.join(data_root, '.dsha-system-plugin-quarantine')
+    os.makedirs(quarantine, exist_ok=True)
+    record = os.path.join(quarantine, '%s-%d-%s' % (
+        name.replace('/', '__'), time.time_ns(), uuid.uuid4().hex[:12]))
+    os.makedirs(record)
+    destination = os.path.join(record, 'content')
+    try:
+        os.replace(path, destination)
+    except OSError:
+        try:
+            os.rmdir(record)
+        except OSError:
+            pass
+        return False
+    try:
+        with open(os.path.join(record, 'migration.json'), 'w', encoding='utf-8') as stream:
+            json.dump({'version': 1, 'name': name, 'reason': 'shadowed-signed-builtin'}, stream)
+    except OSError:
+        # 实体已经完整迁入隔离目录；辅助说明写失败不能把旧字节移回加载路径。
+        pass
+    return True
+
+
+def remove_stale_builtin_alias(name):
+    """实体缺失时摘掉/隔离旧 alias，避免失败后 dsh 继续加载旧系统字节。"""
+    link = os.path.join(local(NODE_MODULES), name)
+    if not os.path.lexists(link):
+        return False
+    if os.path.islink(link):
+        try:
+            os.unlink(link)
+            return True
+        except OSError:
+            return False
+    return quarantine_builtin_entity(name, link)
+
+
+def ensure_symlink(name, d):
+    """保证 profiles/web/node_modules/<name> 是指向实体目录的链接。返回 True=改动了。"""
+    link = os.path.join(local(NODE_MODULES), name)
+    target = local(d)
+    os.makedirs(os.path.dirname(link), exist_ok=True)
+    if os.path.lexists(link):
+        try:
+            if os.path.islink(link) and os.path.realpath(link) == os.path.realpath(target):
+                return ensure_relative_link(link, target)
+        except OSError:
+            pass
+        # 已存在的非正确链接/实体：proot 下 islink 不可信，用 realpath 对比判断；
+        # 指向正确就当作好，指向别处才替换（绝不覆盖用户 pnpm 装的第三方实体）
+        if os.path.isdir(link) and os.path.realpath(link) == os.path.realpath(target):
+            return False
+        if os.path.islink(link):
+            try:
+                os.remove(link)
+            except OSError:
+                return False
+        elif name in builtin_names():
+            # 覆盖更新前的 profile 可能把系统插件复制成实体目录。它会遮住
+            # /root/dsha-* 的当前版本；迁入隔离区后再建立受管链接，绝不删旧字节。
+            if not quarantine_builtin_entity(name, link):
+                return False
+        elif not os.path.isdir(link):
+            try:
+                os.remove(link)
+            except OSError:
+                return False
+        else:
+            # 第三方实体仍由用户插件事务管理，注册脚本不移动。
+            return False
+    try:
+        return ensure_relative_link(link, target)
+    except OSError:
+        return False
+
+
+def remove_link(name):
+    """禁用时摘掉 node_modules 链接（只摘符号链接/文件，绝不碰 pnpm 实体副本目录）。"""
+    link = os.path.join(local(NODE_MODULES), name)
+    try:
+        if os.path.islink(link) or (os.path.lexists(link) and not os.path.isdir(link)):
+            os.remove(link)
+            return True
+    except OSError:
+        pass
+    return False
+
+
+# ================= 启用 / 禁用 =================
+
+def enable_plugin(name):
+    """--enable：清禁用标记、加回 bundles、重建链接（官方核心无标记/链接，只改 bundles）。"""
+    if name not in OFFICIAL_BUNDLES and name not in builtin_names() and not globals().get('_native_review_approved', False):
+        print('BUILTIN_REGISTER_FAIL: 请在原生插件界面审阅并确认启用')
+        return 1
+    lines = ["== " + time.strftime("%Y-%m-%d %H:%M:%S") + " 启用 " + name]
+    try:
+        existing_web = os.path.isfile(os.path.join(local(NODE_MODULES), name, "package.json"))
+        d = entity_dir(name)
+        if d is None and name not in OFFICIAL_BUNDLES:
+            link = os.path.join(local(NODE_MODULES), name, "package.json")
+            if not os.path.isfile(link):
+                raise RuntimeError("找不到插件实体，请重新导入：" + name)
+        doc = read_manifest()
+        if doc is None:
+            lines.append("profile 尚不存在，先注册再启用")
+            _write_log(lines, ok=False)
+            print("BUILTIN_REGISTER_FAIL: profile 不存在，先运行注册")
+            return 1
+        changed = False
+        bundles = list(doc.get("dsh", {}).get("profile", {}).get("bundles") or [])
+        if name not in bundles:
+            doc.setdefault("dsh", {}).setdefault("profile", {})["bundles"] = bundles + [name]
+            changed = True
+        if d is not None and ensure_symlink(name, d):
+            changed = True
+        if d is not None:
+            active = os.path.join(local(NODE_MODULES), name)
+            if (not os.path.isfile(os.path.join(active, "package.json"))
+                    or name in builtin_names()
+                    and os.path.realpath(active) != os.path.realpath(local(d))):
+                raise RuntimeError("无法建立插件链接：" + name)
+            if name in DEFAULT_BUILTINS or not existing_web:
+                doc.setdefault("dependencies", {})[name] = "link:" + d
+                changed = True
+        if changed:
+            write_manifest(doc)
+            lines.append("已加回 bundles：%s" % name)
+        else:
+            lines.append("本就启用：%s" % name)
+        if d is not None and os.path.isfile(marker_path(name)):
+            os.remove(marker_path(name))
+            lines.append("已清除禁用标记")
+    except RuntimeError as e:
+        lines.append(str(e))
+        _write_log(lines, ok=False)
+        print("BUILTIN_REGISTER_FAIL: %s" % e)
+        return 1
+    lines.append("启用完成，重启 Web 后生效")
+    _write_log(lines, ok=True)
+    print("BUILTIN_REGISTER_OK: %s 已启用" % name)
+    return 0
+
+
+def disable_plugin(name):
+    """--disable：写禁用标记、移出 bundles，并从加载路径摘除系统插件旧实体。"""
+    lines = ["== " + time.strftime("%Y-%m-%d %H:%M:%S") + " 禁用 " + name]
+    try:
+        d = entity_dir(name)
+        if d is not None:
+            os.makedirs(os.path.dirname(marker_path(name)), exist_ok=True)
+            # 显式禁用覆盖安全模式的临时标记，批量恢复时保留用户的新选择。
+            with open(marker_path(name), "w", encoding="utf-8") as f:
+                f.write("")
+            lines.append("已写禁用标记")
+        doc = read_manifest()
+        changed = False
+        if doc is not None:
+            bundles = list(doc.get("dsh", {}).get("profile", {}).get("bundles") or [])
+            if name in bundles:
+                bundles = [bundle for bundle in bundles if bundle != name]
+                doc.setdefault("dsh", {}).setdefault("profile", {})["bundles"] = bundles
+                changed = True
+                lines.append("已移出 bundles：%s" % name)
+            else:
+                lines.append("本就不在 bundles：%s" % name)
+            if name in builtin_names() and d is not None:
+                dependencies = doc.setdefault("dependencies", {})
+                expected = "link:" + d
+                if dependencies.get(name) != expected:
+                    dependencies[name] = expected
+                    changed = True
+                    lines.append("已将依赖对齐当前 APK：%s" % name)
+            if changed:
+                write_manifest(doc)
+        # 第三方 pnpm 实体属于其安装记录，禁用只移出 bundles；签名系统插件必须
+        # 同时摘掉旧链接或隔离旧实体，不能让 .disabled 与可加载旧字节并存。
+        if name in builtin_names() and d is not None:
+            link = os.path.join(local(NODE_MODULES), name)
+            removed = remove_stale_builtin_alias(name)
+            if os.path.lexists(link):
+                raise RuntimeError("无法摘除已禁用系统插件的旧实体：" + name)
+            if removed:
+                changed = True
+                lines.append("已摘除或隔离 node_modules 旧实体")
+        if not changed:
+            lines.append("无需改动")
+    except RuntimeError as e:
+        lines.append(str(e))
+        _write_log(lines, ok=False)
+        print("BUILTIN_REGISTER_FAIL: %s" % e)
+        return 1
+    lines.append("禁用完成，重启 Web 后生效")
+    _write_log(lines, ok=True)
+    print("BUILTIN_REGISTER_OK: %s 已禁用" % name)
+    return 0
+
+
+# ================= 一次性默认停用 =================
+
+# dsha-mobile 接替旧的 dsh-web-mobile。旧插件保留实体不删，只在本版首次注册时
+# 写一次禁用标记；迁移凭证放在 DSH_HOME（用户数据，不随受管资产刷新），
+# 之后用户在插件页重新启用会删掉 .disabled，凭证保证不会再被停用。
+DEFAULT_DISABLED_ONCE = ("dsh-web-mobile",)
+DEFAULT_DISABLED_MARKER = os.path.join(DSH_HOME, ".dsha-default-disabled-v1")
+
+
+def apply_default_disabled():
+    marker = local(DEFAULT_DISABLED_MARKER)
+    if os.path.exists(marker):
+        return []
+    done = []
+    for name in DEFAULT_DISABLED_ONCE:
+        # 实体缺失时交给后续「签名内置插件实体缺失」流程处理，不在这里记账。
+        if entity_dir(name) is None:
+            return []
+        path = marker_path(name)
+        if not os.path.exists(path):
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("")
+            done.append(name)
+    # 先写完所有 .disabled，再立凭证：中途失败下次会重来。
+    os.makedirs(os.path.dirname(marker), exist_ok=True)
+    with open(marker, "w", encoding="utf-8") as f:
+        f.write("DSHA_DEFAULT_DISABLED_V1\n" + "\n".join(DEFAULT_DISABLED_ONCE) + "\n")
+    return done
+
+
+# ================= 注册主流程 =================
+
+def register():
+    os.makedirs(local(DSH_HOME), exist_ok=True)
+    lines = ["== " + time.strftime("%Y-%m-%d %H:%M:%S")]
+    try:
+        linked = ensure_runtime_modules()
+        if linked: lines.append('已补充 %d 个共享运行时模块链接' % linked)
+    except (OSError, RuntimeError) as error:
+        print('BUILTIN_REGISTER_FAIL: ' + str(error))
+        return 1
+
+    try:
+        migrated = apply_default_disabled()
+        if migrated:
+            lines.append('一次性默认停用（保留实体，可在插件页重新启用）：%s' % ', '.join(migrated))
+    except OSError as error:
+        lines.append('默认停用迁移未完成，下次启动重试：%s' % error)
+
+    names = builtin_names()
+    present = {}
+    disabled = {}
+    skipped = []
+    missing = []
+    for name in names:
+        d = entity_dir(name)
+        if d is None:
+            missing.append(name)
+            continue
+        if is_disabled(name):
+            skipped.append(name)  # 用户禁用过的：尊重标记，不补回
+            disabled[name] = d
+            continue
+        present[name] = d
+
+    if missing:
+        for name in missing:
+            remove_stale_builtin_alias(name)
+        try:
+            doc = read_manifest()
+            if doc is not None:
+                profile = doc.setdefault('dsh', {}).setdefault('profile', {})
+                profile['bundles'] = [name for name in list(profile.get('bundles') or [])
+                                      if name not in missing]
+                dependencies = dict(doc.get('dependencies') or {})
+                for name in missing:
+                    dependencies.pop(name, None)
+                doc['dependencies'] = dependencies
+                write_manifest(doc)
+        except RuntimeError as error:
+            lines.append(str(error))
+        lines.append('签名内置插件实体缺失：%s' % ', '.join(missing))
+        _write_log(lines, ok=False)
+        print('BUILTIN_REGISTER_FAIL: 签名内置插件实体缺失：%s' % ', '.join(missing))
+        return 1
+
+    # 禁用标记优先于历史 manifest/bundle。覆盖安装可能留下旧 bundle、旧 link:
+    # 依赖和 profile 中的实体副本；先把它们从加载路径收敛，再注册启用项。
+    if disabled:
+        try:
+            doc = read_manifest()
+            created = doc is None
+            if created:
+                ensure_profile_files()
+                doc = new_manifest({})
+            profile = doc.setdefault('dsh', {}).setdefault('profile', {})
+            bundles = list(profile.get('bundles') or [])
+            dependencies = doc.setdefault('dependencies', {})
+            changed = created
+            for name, d in disabled.items():
+                filtered = [bundle for bundle in bundles if bundle != name]
+                if filtered != bundles:
+                    bundles = filtered
+                    changed = True
+                expected = 'link:' + d
+                if dependencies.get(name) != expected:
+                    dependencies[name] = expected
+                    changed = True
+                link = os.path.join(local(NODE_MODULES), name)
+                if remove_stale_builtin_alias(name):
+                    changed = True
+                if os.path.lexists(link):
+                    raise RuntimeError('无法摘除已禁用系统插件的旧实体：' + name)
+            profile['bundles'] = bundles
+            profile['patchReload'] = 'startup'
+            if changed:
+                write_manifest(doc)
+        except (OSError, RuntimeError) as error:
+            lines.append(str(error))
+            _write_log(lines, ok=False)
+            print('BUILTIN_REGISTER_FAIL: ' + str(error))
+            return 1
+
+    if skipped:
+        lines.append("尊重禁用标记跳过：%s" % ", ".join(skipped))
+    if not present:
+        lines.append("内置插件均已禁用，无需注册")
+        _write_log(lines, ok=True)
+        print("BUILTIN_REGISTER_OK: 无待注册内置插件（已禁用 %s）" % ", ".join(skipped))
+        return 0
+
+    changed = []
+    try:
+        doc = read_manifest()
+        if doc is None:
+            ensure_profile_files()
+            doc = new_manifest(present)
+            write_manifest(doc)
+            lines.append("已新建 web profile 并注册 %d 个内置插件：%s"
+                         % (len(present), ", ".join(present)))
+            changed = list(present)
+        else:
+            ensure_profile_files()
+            merged, added = merge_manifest(doc, present)
+            if added or merged != doc:
+                write_manifest(merged)
+                if added:
+                    lines.append("已注册内置插件：%s" % ", ".join(added))
+                else:
+                    lines.append("内置插件本就注册在列：%s" % ", ".join(present))
+                changed = added or list(present)
+    except RuntimeError as e:
+        lines.append(str(e))
+        _write_log(lines, ok=False)
+        print("BUILTIN_REGISTER_FAIL: %s" % e)
+        return 1
+
+    link_changed, link_failed = [], []
+    for name, d in present.items():
+        if ensure_symlink(name, d):
+            link_changed.append(name)
+        else:
+            link = os.path.join(local(NODE_MODULES), name)
+            # 系统插件必须解析到当前受管实体；仅有同名 package.json 不足以
+            # 证明就绪，旧 profile 实体不能继续遮挡覆盖更新后的版本。
+            if (os.path.isfile(os.path.join(link, "package.json"))
+                    and os.path.realpath(link) == os.path.realpath(local(d))):
+                continue
+            link_failed.append(name)
+
+    if link_failed:
+        lines.append("仍未注册（node_modules 链接失败）：%s" % ", ".join(link_failed))
+        _write_log(lines, ok=False)
+        print("BUILTIN_REGISTER_PARTIAL: %s" % ", ".join(link_failed))
+        return 1
+    if link_changed:
+        lines.append("已补 node_modules 链接：%s" % ", ".join(link_changed))
+
+    if changed or link_changed:
+        lines.append("修好 %d 个内置插件注册（bundles+deps+links）" % len(present))
+    else:
+        lines.append("内置插件注册均已就绪，无需改动")
+
+    _write_log(lines, ok=True)
+    print("BUILTIN_REGISTER_OK: %d 个内置插件注册就绪" % len(present))
+    return 0
+
+
+def _write_log(lines, ok):
+    try:
+        with open(local(REPAIR_LOG), "a", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+    except OSError:
+        pass
+
+
+def main():
+    args = sys.argv[1:]
+    if len(args) >= 2 and args[0] in ("--enable", "--disable"):
+        if not valid_name(args[1]):
+            print("BUILTIN_REGISTER_FAIL: 无效插件名")
+            return 1
+        return enable_plugin(args[1]) if args[0] == "--enable" else disable_plugin(args[1])
+    return register()
+
+
+if __name__ == "__main__":
+    with operation_lock():
+        sys.exit(main())

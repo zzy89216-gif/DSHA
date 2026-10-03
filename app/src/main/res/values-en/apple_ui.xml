@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="apple_launch_details">Runtime details</string>
+    <string name="apple_launch_details_sub">Port, environment, startup log and recovery</string>
+    <string name="apple_advanced">Advanced</string>
+    <string name="apple_advanced_sub">Native credential, floating status and runtime compatibility</string>
+    <string name="apple_maintenance_sub">Environment repair, data rescue and configuration reset</string>
+    <string name="apple_expanded">Expanded</string>
+    <string name="apple_collapsed">Collapsed</string>
+    <string name="apple_background">Background</string>
+    <string name="apple_bg_default">Default</string>
+    <string name="apple_bg_glass">Dynamic glass</string>
+    <string name="apple_bg_image">Custom image</string>
+    <string name="apple_bg_image_change">Choose another image</string>
+    <string name="apple_bg_failed">Couldn’t read this image</string>
+    <string name="apple_more_actions">More actions</string>
+    <string name="apple_open_workspace">Open workspace</string>
+</resources>

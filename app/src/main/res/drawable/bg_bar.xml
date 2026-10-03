@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 底栏：半透明底 + 顶部发丝线 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item><shape><solid android:color="@color/nav_bar" /></shape></item>
+    <item android:gravity="top" android:height="@dimen/hairline"><shape><solid android:color="@color/separator" /></shape></item>
+</layer-list>

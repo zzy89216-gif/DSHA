@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 页面 / 卡片 / 底栏背景走主题属性：普通主题与「液态玻璃」覆盖层各给一套。 -->
+<resources>
+    <attr name="dshaPageBackground" format="reference|color" />
+    <attr name="dshaCardBackground" format="reference" />
+    <attr name="dshaBarBackground" format="reference|color" />
+    <attr name="dshaWindowBackground" format="reference|color" />
+</resources>

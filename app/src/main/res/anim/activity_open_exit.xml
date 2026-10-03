@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 被盖住的页面：向左微移并变暗，形成层次 -->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:duration="320" android:interpolator="@interpolator/ease_emphasized" android:shareInterpolator="true">
+    <translate android:fromXDelta="0" android:toXDelta="-4%" />
+    <alpha android:fromAlpha="1" android:toAlpha="0.6" />
+</set>

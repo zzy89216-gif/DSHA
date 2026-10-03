@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:fillViewport="true" android:background="?attr/dshaPageBackground">
+  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingLeft="20dp" android:paddingRight="20dp" android:paddingTop="20dp" android:paddingBottom="32dp">
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui2_settings" android:textSize="30sp" android:textColor="@color/text" android:includeFontPadding="false" android:textStyle="bold" android:letterSpacing="-0.02" android:fontFamily="sans-serif"/>
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui2_settings_hint" android:textSize="15sp" android:textColor="@color/text_secondary" android:includeFontPadding="false" android:layout_marginTop="8dp" android:lineSpacingExtra="2dp"/>
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui2_workspace" android:textSize="13sp" android:textColor="@color/text_secondary" android:includeFontPadding="false" android:layout_marginTop="26dp" android:layout_marginBottom="8dp" android:paddingStart="16dp"/>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/settings_tabs" android:orientation="vertical" android:background="?attr/dshaCardBackground"/>
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui2_experience" android:textSize="13sp" android:textColor="@color/text_secondary" android:includeFontPadding="false" android:layout_marginTop="26dp" android:layout_marginBottom="8dp" android:paddingStart="16dp"/>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="?attr/dshaCardBackground">
+      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/settings_power" android:orientation="vertical"/>
+      <View android:layout_width="match_parent" android:layout_height="@dimen/hairline" android:background="@color/separator" android:layout_marginStart="16dp"/>
+      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/settings_direct_web" android:orientation="vertical"/>
+      <View android:layout_width="match_parent" android:layout_height="@dimen/hairline" android:background="@color/separator" android:layout_marginStart="16dp"/>
+      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/settings_web_handle" android:orientation="vertical"/>
+      <View android:layout_width="match_parent" android:layout_height="@dimen/hairline" android:background="@color/separator" android:layout_marginStart="16dp"/>
+      <LinearLayout android:id="@+id/settings_background" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:minHeight="60dp" android:paddingStart="16dp" android:paddingEnd="14dp" android:paddingTop="10dp" android:paddingBottom="10dp" android:gravity="center_vertical" android:clickable="true" android:focusable="true" android:background="?attr/selectableItemBackground">
+        <ImageView android:layout_width="@dimen/tile_size" android:layout_height="@dimen/tile_size" android:src="@drawable/ic_ui2_sun" android:background="@drawable/bg_tile_blue" android:padding="6dp" android:contentDescription="@null" app:tint="@color/tile_on"/>
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:orientation="vertical" android:layout_weight="1" android:layout_marginStart="12dp" android:layout_marginEnd="8dp">
+          <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/apple_background" android:textSize="16sp" android:textColor="@color/text" android:includeFontPadding="false" android:fontFamily="sans-serif-medium"/>
+          <TextView android:id="@+id/settings_background_value" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13sp" android:textColor="@color/text_secondary" android:includeFontPadding="false" android:layout_marginTop="3dp"/>
+        </LinearLayout>
+        <ImageView android:layout_width="14dp" android:layout_height="14dp" android:src="@drawable/ic_ui2_chevron" android:contentDescription="@null"/>
+      </LinearLayout>
+      <View android:layout_width="match_parent" android:layout_height="@dimen/hairline" android:background="@color/separator" android:layout_marginStart="@dimen/row_inset"/>
+      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/settings_appearance" android:orientation="horizontal" android:minHeight="64dp" android:padding="13dp" android:clickable="true" android:focusable="true" android:background="?attr/selectableItemBackground" android:gravity="center_vertical">
+        <ImageView android:layout_width="@dimen/tile_size" android:layout_height="@dimen/tile_size" android:src="@drawable/ic_ui_language" android:background="@drawable/bg_tile_blue" android:padding="6dp" android:contentDescription="@null" app:tint="@color/tile_on"/>
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:orientation="vertical" android:layout_weight="1" android:layout_marginStart="12dp">
+          <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="语言 / Language" android:textSize="16sp" android:textColor="@color/text" android:includeFontPadding="false" android:fontFamily="sans-serif-medium"/>
+          <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/settings_language" android:text="" android:textSize="12sp" android:textColor="@color/text_secondary" android:includeFontPadding="false" android:layout_marginTop="4dp"/>
+        </LinearLayout>
+        <ImageView android:layout_width="14dp" android:layout_height="14dp" android:src="@drawable/ic_ui2_chevron" android:contentDescription="@null"/>
+      </LinearLayout>
+      <View android:layout_width="match_parent" android:layout_height="@dimen/hairline" android:background="@color/separator" android:layout_marginStart="@dimen/row_inset"/>
+      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/settings_overlay" android:orientation="horizontal" android:minHeight="64dp" android:padding="13dp" android:clickable="true" android:focusable="true" android:background="?attr/selectableItemBackground" android:gravity="center_vertical">
+        <ImageView android:layout_width="@dimen/tile_size" android:layout_height="@dimen/tile_size" android:src="@drawable/ic_ui_chat" android:background="@drawable/bg_tile_blue" android:padding="6dp" android:contentDescription="@null" app:tint="@color/tile_on"/>
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:orientation="vertical" android:layout_weight="1" android:layout_marginStart="12dp">
+          <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui2_overlay" android:textSize="16sp" android:textColor="@color/text" android:includeFontPadding="false" android:fontFamily="sans-serif-medium"/>
+          <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui2_overlay_sub" android:textSize="13sp" android:textColor="@color/text_secondary" android:includeFontPadding="false" android:layout_marginTop="3dp"/>
+        </LinearLayout>
+        <ImageView android:layout_width="14dp" android:layout_height="14dp" android:src="@drawable/ic_ui2_chevron" android:contentDescription="@null"/>
+      </LinearLayout>
+    </LinearLayout>
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui2_support" android:textSize="13sp" android:textColor="@color/text_secondary" android:includeFontPadding="false" android:layout_marginTop="26dp" android:layout_marginBottom="8dp" android:paddingStart="16dp"/>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="?attr/dshaCardBackground">
+      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/settings_update" android:orientation="horizontal" android:minHeight="64dp" android:padding="13dp" android:clickable="true" android:focusable="true" android:background="?attr/selectableItemBackground" android:gravity="center_vertical">
+        <ImageView android:layout_width="@dimen/tile_size" android:layout_height="@dimen/tile_size" android:src="@drawable/ic_recovery_refresh" android:background="@drawable/bg_tile_blue" android:padding="6dp" android:contentDescription="@null" app:tint="@color/tile_on"/>
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:orientation="vertical" android:layout_weight="1" android:layout_marginStart="12dp">
+          <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui2_updates" android:textSize="16sp" android:textColor="@color/text" android:includeFontPadding="false" android:fontFamily="sans-serif-medium"/>
+          <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui2_updates_sub" android:textSize="13sp" android:textColor="@color/text_secondary" android:includeFontPadding="false" android:layout_marginTop="3dp"/>
+        </LinearLayout>
+        <ImageView android:layout_width="14dp" android:layout_height="14dp" android:src="@drawable/ic_ui2_chevron" android:contentDescription="@null"/>
+      </LinearLayout>
+      <View android:layout_width="match_parent" android:layout_height="@dimen/hairline" android:background="@color/separator" android:layout_marginStart="@dimen/row_inset"/>
+      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/settings_selftest" android:orientation="horizontal" android:minHeight="64dp" android:padding="13dp" android:clickable="true" android:focusable="true" android:background="?attr/selectableItemBackground" android:gravity="center_vertical">
+        <ImageView android:layout_width="@dimen/tile_size" android:layout_height="@dimen/tile_size" android:src="@drawable/ic_ui_shield" android:background="@drawable/bg_tile_blue" android:padding="6dp" android:contentDescription="@null" app:tint="@color/tile_on"/>
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:orientation="vertical" android:layout_weight="1" android:layout_marginStart="12dp">
+          <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui2_diagnostics" android:textSize="16sp" android:textColor="@color/text" android:includeFontPadding="false" android:fontFamily="sans-serif-medium"/>
+          <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui2_diagnostics_sub" android:textSize="13sp" android:textColor="@color/text_secondary" android:includeFontPadding="false" android:layout_marginTop="3dp"/>
+        </LinearLayout>
+        <ImageView android:layout_width="14dp" android:layout_height="14dp" android:src="@drawable/ic_ui2_chevron" android:contentDescription="@null"/>
+      </LinearLayout>
+      <View android:layout_width="match_parent" android:layout_height="@dimen/hairline" android:background="@color/separator" android:layout_marginStart="@dimen/row_inset"/>
+      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/settings_about" android:orientation="horizontal" android:minHeight="64dp" android:padding="13dp" android:clickable="true" android:focusable="true" android:background="?attr/selectableItemBackground" android:gravity="center_vertical">
+        <ImageView android:layout_width="@dimen/tile_size" android:layout_height="@dimen/tile_size" android:src="@drawable/ic_about" android:background="@drawable/bg_tile_blue" android:padding="6dp" android:contentDescription="@null" app:tint="@color/tile_on"/>
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:orientation="vertical" android:layout_weight="1" android:layout_marginStart="12dp">
+          <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui2_about" android:textSize="16sp" android:textColor="@color/text" android:includeFontPadding="false" android:fontFamily="sans-serif-medium"/>
+          <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui2_about_sub" android:textSize="13sp" android:textColor="@color/text_secondary" android:includeFontPadding="false" android:layout_marginTop="3dp"/>
+        </LinearLayout>
+        <ImageView android:layout_width="14dp" android:layout_height="14dp" android:src="@drawable/ic_ui2_chevron" android:contentDescription="@null"/>
+      </LinearLayout>
+    </LinearLayout>
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/settings_ver" android:text="" android:textSize="12sp" android:textColor="@color/text_muted" android:includeFontPadding="false" android:gravity="center" android:layout_marginTop="16dp"/>
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/settings_update_sub" android:text="" android:textSize="12sp" android:textColor="@color/text" android:includeFontPadding="false" android:visibility="gone"/>
+  </LinearLayout>
+</ScrollView>

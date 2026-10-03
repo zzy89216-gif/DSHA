@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- 品牌标志：全应用唯一的渐变元素，其余图标块统一为主色浅底 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient android:angle="315" android:startColor="@color/mark_start" android:endColor="@color/mark_end" />
+    <corners android:radius="26dp" />
+</shape>

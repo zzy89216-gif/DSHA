@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 苹果深色：纯黑底、#1C1C1E 卡片、浅蓝强调。对比度同样由 test-ui-colors.py 校验。 -->
+<resources>
+    <color name="panel_top">#000000</color>
+    <color name="panel_bottom">#000000</color>
+    <color name="panel_outline">#2C2C2E</color>
+    <color name="primary">#4AA8FF</color>
+    <color name="primary_dark">#2C8CE8</color>
+    <color name="accent_on">#00142B</color>
+    <color name="surface">#000000</color>
+    <color name="card">#1C1C1E</color>
+    <color name="raised">#242426</color>
+    <color name="line">#2C2C2E</color>
+    <color name="text">#F5F5F7</color>
+    <color name="text_secondary">#AEAEB2</color>
+    <color name="text_muted">#A1A1A6</color>
+    <color name="ok">#30D158</color>
+    <color name="warn">#FFD60A</color>
+    <color name="err">#FF6961</color>
+    <color name="preview">#000000</color>
+    <color name="logo_top">#10243B</color>
+    <color name="logo_bot">#10243B</color>
+    <color name="ripple">#144AA8FF</color>
+    <color name="primary_ripple">#1F000000</color>
+    <color name="error_on">#2A0606</color>
+    <color name="disabled">#2C2C2E</color>
+    <color name="err_bg">#1AFF6961</color>
+
+    <color name="separator">#38383A</color>
+    <color name="chevron">#5A5A5F</color>
+    <color name="nav_bar">#F20A0A0B</color>
+    <color name="input_fill">#242426</color>
+
+    <color name="tile_on">#6CB6FF</color>
+    <color name="tile_bg">#1A2B40</color>
+    <color name="tile_warm_on">#FFB65C</color>
+    <color name="tile_warm_bg">#3A2A14</color>
+    <color name="mark_on">#FFFFFF</color>
+    <color name="mark_start">#0A84FF</color>
+    <color name="mark_end">#5E5CE6</color>
+    <color name="backdrop_base">#06070B</color>
+    <color name="backdrop_scrim">#A6000000</color>
+    <color name="glass_card">#B31C1C1E</color>
+    <color name="glass_bar">#CC121214</color>
+    <color name="glass_edge">#26FFFFFF</color>
+    <color name="glass_dialog">#E61C1C1E</color>
+</resources>

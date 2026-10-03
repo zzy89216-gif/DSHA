@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.DeepseekHarness" parent="Theme.DSHA.Base">
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+
+    <style name="Theme.DSHA.Base" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorOnPrimary">@color/accent_on</item>
+        <item name="colorPrimaryContainer">@color/raised</item>
+        <item name="colorOnPrimaryContainer">@color/primary</item>
+        <item name="colorSecondary">@color/primary_dark</item>
+        <!-- 底栏选中指示 / 芯片选中底色走这两个（不给的话 Material 会自己算一个
+             紫色系默认值，跟本 App 的蓝灰配色打架） -->
+        <item name="colorSecondaryContainer">@color/ripple</item>
+        <item name="colorOnSecondaryContainer">@color/primary</item>
+        <!-- 表面层级：卡片=card，次级容器=raised，描边=line。
+             Switch / CheckBox / Slider / AlertDialog 都吃这几个语义色，
+             补齐后系统控件才会和自绘的卡片按钮同色系。 -->
+        <item name="colorSurface">@color/card</item>
+        <item name="colorSurfaceContainerLowest">@color/surface</item>
+        <item name="colorSurfaceContainerLow">@color/card</item>
+        <item name="colorSurfaceContainer">@color/card</item>
+        <item name="colorSurfaceContainerHigh">@color/card</item>
+        <item name="colorSurfaceContainerHighest">@color/raised</item>
+        <item name="colorOnSurface">@color/text</item>
+        <item name="colorSurfaceVariant">@color/raised</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary</item>
+        <item name="colorOutline">@color/line</item>
+        <item name="colorOutlineVariant">@color/line</item>
+        <item name="colorError">@color/err</item>
+        <item name="colorOnError">@color/error_on</item>
+        <item name="colorControlHighlight">@color/ripple</item>
+
+        <item name="android:colorBackground">@color/surface</item>
+        <item name="android:windowBackground">@color/surface</item>
+        <item name="android:windowAnimationStyle">@style/Animation.DSHA.Activity</item>
+        <item name="android:statusBarColor">@color/surface</item>
+        <item name="android:navigationBarColor">@color/surface</item>
+        <item name="android:textColorPrimary">@color/text</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:textColorHint">@color/text_muted</item>
+
+        <!-- 弹窗圆角/配色跟随 App（系统默认弹窗是直角 + 紫色按钮）。
+             两条各管一路：alertDialogTheme 管 appcompat/framework 的 AlertDialog，
+             materialAlertDialogTheme 管 MaterialAlertDialogBuilder。 -->
+        <item name="alertDialogTheme">@style/Dialog.DSHA.Alert</item>
+        <item name="materialAlertDialogTheme">@style/Dialog.DSHA.Material</item>
+
+        <!-- 关闭自动着色时必须同时指定默认背景和文字状态，否则未指定背景的按钮会变黑。 -->
+        <item name="materialButtonStyle">@style/Widget.DSHA.Button</item>
+        <item name="buttonStyle">@style/Widget.DSHA.Button</item>
+        <item name="android:buttonStyle">@style/Widget.DSHA.PlatformButton</item>
+        <item name="android:colorAccent">@color/primary</item>
+        <item name="colorControlNormal">@color/text_secondary</item>
+        <item name="colorControlActivated">@color/primary</item>
+        <item name="radioButtonStyle">@style/Widget.DSHA.RadioButton</item>
+        <item name="checkboxStyle">@style/Widget.DSHA.CheckBox</item>
+        <item name="materialSwitchStyle">@style/Widget.DSHA.Switch</item>
+        <item name="bottomNavigationStyle">@style/Widget.DSHA.BottomNav</item>
+
+        <!-- 页面 / 卡片 / 底栏背景（液态玻璃覆盖层会整体替换这四项） -->
+        <item name="dshaPageBackground">@color/surface</item>
+        <item name="dshaWindowBackground">@color/surface</item>
+        <item name="dshaCardBackground">@drawable/bg_card</item>
+        <item name="dshaBarBackground">@drawable/bg_bar</item>
+    </style>
+
+    <!-- 液态玻璃：设置里手动开启后，以 ThemeOverlay 叠加在任意 DSHA 主题上。
+         页面层透明，统一透出窗口的多色光斑底；卡片 / 底栏 / 弹窗改为半透明玻璃。 -->
+
+    <!-- 底栏：去掉 Material 3 的选中胶囊，只保留图标与文字着色（iOS 标签栏样式） -->
+    <style name="Widget.DSHA.BottomNav" parent="Widget.Material3.BottomNavigationView">
+        <item name="itemActiveIndicatorStyle">@style/Widget.DSHA.BottomNav.Indicator</item>
+        <item name="itemRippleColor">@android:color/transparent</item>
+        <item name="backgroundTint">@null</item>
+        <item name="elevation">0dp</item>
+    </style>
+    <style name="Widget.DSHA.BottomNav.Indicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
+        <item name="android:color">@android:color/transparent</item>
+    </style>
+
+    <!-- appcompat / framework AlertDialog：必须是完整 Dialog 主题（不能给 Overlay） -->
+    <style name="Dialog.DSHA.Alert" parent="Theme.Material3.DayNight.Dialog.Alert">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorSurface">@color/card</item>
+        <item name="colorSurfaceContainerLowest">@color/surface</item>
+        <item name="colorSurfaceContainerLow">@color/card</item>
+        <item name="colorSurfaceContainer">@color/card</item>
+        <item name="colorSurfaceContainerHigh">@color/card</item>
+        <item name="colorSurfaceContainerHighest">@color/raised</item>
+        <item name="colorOnSurface">@color/text</item>
+        <item name="android:textColorPrimary">@color/text</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:colorAccent">@color/primary</item>
+        <item name="android:textColorHint">@color/text_muted</item>
+        <item name="shapeAppearanceOverlay">@style/Shape.DSHA.Dialog</item>
+    </style>
+
+    <!-- MaterialAlertDialogBuilder 专用（必须是 ThemeOverlay） -->
+    <style name="Dialog.DSHA.Material" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="elevationOverlayEnabled">false</item>
+        <item name="android:backgroundDimAmount">0.22</item>
+        <item name="buttonBarPositiveButtonStyle">@style/Widget.DSHA.DialogButton</item>
+        <item name="buttonBarNegativeButtonStyle">@style/Widget.DSHA.DialogButton</item>
+        <item name="buttonBarNeutralButtonStyle">@style/Widget.DSHA.DialogButton</item>
+        <item name="materialAlertDialogTitleTextStyle">@style/TextAppearance.DSHA.DialogTitle</item>
+        <item name="materialAlertDialogBodyTextStyle">@style/TextAppearance.DSHA.DialogBody</item>
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorSurface">@color/card</item>
+        <item name="colorSurfaceContainerLowest">@color/surface</item>
+        <item name="colorSurfaceContainerLow">@color/card</item>
+        <item name="colorSurfaceContainer">@color/card</item>
+        <item name="colorSurfaceContainerHigh">@color/card</item>
+        <item name="colorSurfaceContainerHighest">@color/raised</item>
+        <item name="colorOnSurface">@color/text</item>
+        <item name="android:colorAccent">@color/primary</item>
+        <item name="android:textColorHint">@color/text_muted</item>
+        <item name="shapeAppearanceOverlay">@style/Shape.DSHA.Dialog</item>
+    </style>
+
+    <style name="Shape.DSHA.Dialog" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">28dp</item>
+    </style>
+
+    <!-- 自定义图片背景：页面层透明，卡片与底栏半透明，统一透出窗口背景。 -->
+    <style name="ThemeOverlay.DSHA.Translucent" parent="">
+        <item name="dshaPageBackground">@android:color/transparent</item>
+        <item name="dshaCardBackground">@drawable/bg_glass_card</item>
+        <item name="dshaBarBackground">@drawable/bg_glass_bar</item>
+        <item name="android:windowBackground">@color/backdrop_base</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+    <!-- 全局页面切换：推入 / 退出带层次感，所有 Activity 统一 -->
+    <style name="Animation.DSHA.Activity" parent="@android:style/Animation.Activity">
+        <item name="android:activityOpenEnterAnimation">@anim/activity_open_enter</item>
+        <item name="android:activityOpenExitAnimation">@anim/activity_open_exit</item>
+        <item name="android:activityCloseEnterAnimation">@anim/activity_close_enter</item>
+        <item name="android:activityCloseExitAnimation">@anim/activity_close_exit</item>
+    </style>
+</resources>

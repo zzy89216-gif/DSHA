@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:fillViewport="true" android:background="?attr/dshaPageBackground">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingLeft="20dp" android:paddingRight="20dp" android:paddingTop="20dp" android:paddingBottom="32dp">
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="DEEPSEEK HARNESS · ANDROID" android:textSize="12sp" android:textColor="@color/primary" android:includeFontPadding="false" android:letterSpacing=".15" android:layout_marginBottom="16dp"/>
+        <FrameLayout android:layout_width="match_parent" android:layout_height="140dp">
+            <ImageView android:layout_width="88dp" android:layout_height="88dp" android:layout_gravity="center" android:src="@drawable/ic_ui2_prompt" android:background="@drawable/bg_ui2_mark" android:padding="24dp" android:contentDescription="@null" app:tint="@color/mark_on"/>
+        </FrameLayout>
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui2_welcome_title0" android:textSize="28sp" android:letterSpacing="-0.02" android:textColor="@color/text" android:includeFontPadding="false" android:textStyle="bold" android:layout_marginTop="18dp"/>
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui2_welcome_lead0" android:textSize="16sp" android:textColor="@color/text_secondary" android:includeFontPadding="false" android:lineSpacingExtra="4dp" android:layout_marginTop="12dp"/>
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/ui2_offline_badge" android:textSize="12sp" android:textColor="@color/primary" android:includeFontPadding="false" android:layout_marginTop="22dp"/>
+    </LinearLayout>
+</ScrollView>
