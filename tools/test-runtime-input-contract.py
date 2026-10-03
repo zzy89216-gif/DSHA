@@ -13,6 +13,8 @@ module_spec.loader.exec_module(descriptor)
 
 class RuntimeInputContractTest(unittest.TestCase):
     def setUp(self):
+        # app/build/ 不进 Git，干净检出时不存在；不先建好，TemporaryDirectory 会直接抛错
+        (ROOT / 'app/build').mkdir(parents=True, exist_ok=True)
         self.temp = tempfile.TemporaryDirectory(prefix='runtime-input-test-', dir=ROOT / 'app/build')
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)

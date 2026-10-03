@@ -47,6 +47,8 @@ class ReleaseEvidenceTest(unittest.TestCase):
         with self.assertRaises(ValueError):gate.validate_device_evidence(changed,self.apks)
 
     def test_delivery_receipt_requires_same_sources_and_untouched_pass_logs(self):
+        # app/build/ 不进 Git，干净检出时不存在
+        (gate.ROOT/'app/build').mkdir(parents=True,exist_ok=True)
         with tempfile.TemporaryDirectory(prefix='delivery-receipt-',dir=gate.ROOT/'app/build') as folder:
             root=Path(folder);source=root/'sources.json';log=root/'check.log'
             current={'app/src/main/java/Example.java':'a'*64}
