@@ -95,7 +95,7 @@ agent 通过本机设备桥（端口见 `/root/.dsh/.bridge_port`，默认 3190�
 
 | 插件 | 作用 | 默认 |
 |---|---|---|
-| `dsha-mobile` | 手机专属网页界面（0.2.0）：底部标签栏（对话 / 会话 / 新建 / 设置），侧栏改为抽屉，点会话行直接进那个会话，设置面板全屏，键盘弹出时底栏让开；在「设置 → 通用设置」增加手机模式、动态玻璃、配色三项。源码 [zzy89216-gif/dsha-mobile](https://github.com/zzy89216-gif/dsha-mobile) | 启用 |
+| `dsha-mobile` | 手机专属网页界面（0.2.1）：底部标签栏（对话 / 会话 / 新建 / 设置），侧栏改为抽屉，点会话行直接进那个会话，设置面板全屏，键盘弹出时底栏让开；在「设置 → 通用设置」增加手机模式、动态玻璃、配色三项。源码 [zzy89216-gif/dsha-mobile](https://github.com/zzy89216-gif/dsha-mobile) | 启用 |
 | `dsh-web-mobile` | 旧的移动端适配（[mexiaosqwq/dsh-web-mobile](https://github.com/mexiaosqwq/dsh-web-mobile)，MIT） | 停用 |
 | `dsh-status-overlay` | 流式悬浮条 | 启用 |
 | `dsh-task-notifier` | 回合完成通知 | 启用 |

@@ -120,6 +120,16 @@ window.__ModuleLoader__.load({
       `.dsha-m-scrim{position:fixed;inset:0;z-index:29;background:rgba(0,0,0,.32);opacity:0;pointer-events:none;transition:opacity .22s ease;}`,
       `${M}[data-dsha-m-drawer] .dsha-m-scrim{opacity:1;pointer-events:auto;}`,
 
+      // 会话行的 ⋯ 菜单：宿主把菜单 portal 到 <body>（position:fixed），默认层级低于手机抽屉（60），
+      // 于是菜单整块画在抽屉下面 —— 点得到的位置都被抽屉挡着，删除 / 改名 / 归档全都做不了。
+      // 菜单挂在 body 下，本来就是 <html> 的后代，所以从 html 上的抽屉标记起用后代选择器抬层级。
+      // （同款问题在 dsh-web-mobile 里有过实测记录：菜单 z1100 对抽屉 z1300，整块不可达。）
+      `${M}[data-dsha-m-drawer] [role=menu]{z-index:1400 !important;}`,
+      `${M}[data-dsha-m-drawer] [role=menu] [role=menuitem]{z-index:1400 !important;}`,
+      // 触屏没有 hover，而宿主只在 :hover / menuOpen 时显示行内操作区。抽屉里的会话行把 ⋯ 常显，
+      // 否则删除 / 改名 / 归档在手机上根本没有入口。行内布局不动：标题是 flex:1 + min-width:0，自己让位。
+      `${M}[data-dsha-m-drawer] [class*="sessionRow"] [class*="_rowActions"]{display:inline-flex !important;}`,
+
       // 给底栏让位；打字时底栏让给键盘，下面的占位也跟着撤掉
       `${M}:not([data-dsha-m-typing]) div:has(> [data-slot=main]){padding-bottom:var(--dsha-tab-space);box-sizing:border-box;}`,
       `${M}[data-dsha-m-typing] div:has(> [data-slot=main]){padding-bottom:0;}`,
@@ -346,6 +356,23 @@ window.__ModuleLoader__.load({
       const key = row.getAttribute("data-row-key") || "";
       return key.startsWith("session:") ? key.slice(8) : "";
     }
+    /**
+     * 行内「操作」的判据：命中的点击属于会话行上的按钮（宿主的 ⋯ 菜单锚点，以及插件往
+     * `sidebar.workspaces.session.row.action` 里加的东西）或已弹出的菜单本身 —— 不是「点这一行」。
+     *
+     * <p>宿主实测结构（2026-10-03，`@deepseek-ai/dsh-client-ui-workspace`）：
+     * `span[class*=_rowActions] > button[class*=_iconButton][aria-label=…]` 是 ⋯ 锚点；
+     * 菜单由宿主 portal 到 `<body>`（`role=menu`，条目是 `button[role=menuitem]`），
+     * 不在侧栏子树里。锚点**只有 `aria-label`，没有 `aria-haspopup`**（菜单在 portal 里），
+     * 所以不能按 `aria-haspopup` 判 —— 老写法只认 `button[aria-haspopup]`，结果 ⋯ 不匹配，
+     * 点击被当成「点行」：直接打开会话并收起抽屉，菜单永远打不开，也就删不掉 / 改名 / 归档不了对话。
+     */
+    const ROW_ACTION_SELECTOR = 'button, [class*="_rowActions"], [role=menu], [role=menuitem], [role=dialog]';
+
+    function isRowActionTarget(target) {
+      if (!target || typeof target.closest !== "function") return false;
+      return target.closest(ROW_ACTION_SELECTOR) !== null;
+    }
     /** 手指抬起当作「滚列表」的最大位移（像素）。 */
     const ROW_TAP_SLOP = 12;
     /** 超过这个时长的按压算长按（改名 / ⋯ 菜单），不是「要进这个会话」。 */
@@ -537,7 +564,7 @@ window.__ModuleLoader__.load({
         if (!e.target || !e.target.closest) return;
         const row = e.target.closest('[data-slot=sidebar] [data-row-key^="session:"]');
         if (!row) return;
-        if (e.target.closest("button[aria-haspopup], [role=menu], [role=dialog]")) return;
+        if (isRowActionTarget(e.target)) return;
         const action = rowTapAction({
           suppressed: synthesizing || e.defaultPrevented,
           longPress, moved,
@@ -638,6 +665,7 @@ window.__ModuleLoader__.load({
     }
 
     // __test 只给 test/client.test.mjs 用（纯逻辑，dsh 只认 apply / inject）。
-    return { apply, inject, __test: { sessionIdOf, rowTapAction, ROW_TAP_SLOP, ROW_LONG_PRESS_MS } };
+    return { apply, inject, __test: { sessionIdOf, rowTapAction, isRowActionTarget, ROW_ACTION_SELECTOR,
+      ROW_TAP_SLOP, ROW_LONG_PRESS_MS } };
   },
 });

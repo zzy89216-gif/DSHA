@@ -8,7 +8,7 @@
 
 | 插件 | 作用 | 默认 |
 |---|---|---|
-| `dsha-mobile` | 手机专属网页界面（0.2.0），见下文 | 启用 |
+| `dsha-mobile` | 手机专属网页界面（0.2.1），见下文 | 启用 |
 | `dsh-web-mobile` | 旧的移动端适配（[mexiaosqwq/dsh-web-mobile](https://github.com/mexiaosqwq/dsh-web-mobile)，MIT） | 停用 |
 | `dsh-status-overlay` | 流式悬浮条 | 启用 |
 | `dsh-task-notifier` | 回合完成通知 | 启用 |
@@ -17,7 +17,7 @@
 | `dsh-tool-vscreen` | 虚拟屏工具 | 启用 |
 | `dsh-auto-review` | 官方实验性 Auto review 入口 | 启用 |
 
-dsha-mobile 从 v0.1.7-rc2-zzy.7 起内置（zzy.8 起为 0.2.0），源码在 [zzy89216-gif/dsha-mobile](https://github.com/zzy89216-gif/dsha-mobile)：
+dsha-mobile 从 v0.1.7-rc2-zzy.7 起内置（v26.1.0-zzy.1 起为 0.2.1），源码在 [zzy89216-gif/dsha-mobile](https://github.com/zzy89216-gif/dsha-mobile)：
 
 - 底部标签栏：对话 / 会话 / 新建 / 设置；抽屉打开时底栏仍然可点。
 - 侧栏改为抽屉。点抽屉里的会话行会直接打开那个会话：宿主把会话行做成「单击=选中、双击=打开」，抽屉如果在第一次单击就收起，第二次点击就落不到那一行上，历史对话会打不开。长按、拖列表都不当成「要进去」。

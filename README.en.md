@@ -97,7 +97,7 @@ Troubleshooting
 
 | Plugin | Purpose | Default |
 |---|---|---|
-| `dsha-mobile` | Phone web UI (0.2.0): bottom tab bar (Chat / Sessions / New / Settings), sidebar as a drawer, tapping a session row opens it, full-screen settings panel, tab bar moves out of the way when the keyboard opens. Adds three options under "Settings → General": phone mode, dynamic glass and color scheme. Source: [zzy89216-gif/dsha-mobile](https://github.com/zzy89216-gif/dsha-mobile) | Enabled |
+| `dsha-mobile` | Phone web UI (0.2.1): bottom tab bar (Chat / Sessions / New / Settings), sidebar as a drawer, tapping a session row opens it, full-screen settings panel, tab bar moves out of the way when the keyboard opens. Adds three options under "Settings → General": phone mode, dynamic glass and color scheme. Source: [zzy89216-gif/dsha-mobile](https://github.com/zzy89216-gif/dsha-mobile) | Enabled |
 | `dsh-web-mobile` | The older mobile adaptation ([mexiaosqwq/dsh-web-mobile](https://github.com/mexiaosqwq/dsh-web-mobile), MIT) | Disabled |
 | `dsh-status-overlay` | Streaming overlay | Enabled |
 | `dsh-task-notifier` | Notification when a turn finishes | Enabled |

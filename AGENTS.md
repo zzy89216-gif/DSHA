@@ -75,7 +75,7 @@ App 把 Ubuntu rootfs 解到应用私有目录，用 proot / proroot 在里面�
 
 内置插件在 `app/src/main/assets/builtin-plugins/`。
 
-- dsha-mobile（zzy.8 起 0.2.0）：手机专属网页界面，zzy.7 起内置并默认启用。源码 <https://github.com/zzy89216-gif/dsha-mobile>，随包副本在 `app/src/main/assets/builtin-plugins/dsha-mobile/`。改完要同步回源码仓库并跑那边的 `node --test test/client.test.mjs`。抽屉里的会话行必须直接打开会话：宿主是「单击=选中、双击=打开」（`DSHA_SESSION_INTERACTION_V2`），抽屉若在第一次单击就收起，历史对话就永远进不去。
+- dsha-mobile（v26.1.0-zzy.1 起 0.2.1，zzy.8 起 0.2.0）：手机专属网页界面，zzy.7 起内置并默认启用。源码 <https://github.com/zzy89216-gif/dsha-mobile>，随包副本在 `app/src/main/assets/builtin-plugins/dsha-mobile/`。改完要同步回源码仓库并跑那边的 `node --test test/client.test.mjs`。抽屉里的会话行必须直接打开会话：宿主是「单击=选中、双击=打开」（`DSHA_SESSION_INTERACTION_V2`），抽屉若在第一次单击就收起，历史对话就永远进不去。
 - dsh-web-mobile 3.0.3：源码固定在 `a094288883b343e848d7f9cf302d73ad8ed4794b`，本地改动用 `tools/apply-mobile-client-patches.mjs` 管理（`tools/test-mobile-update.mjs` 会检查这个提交号）。zzy.7 起保留但升级和新装后默认停用一次，用户手动启用后保持启用。
 
 ## 安全边界
